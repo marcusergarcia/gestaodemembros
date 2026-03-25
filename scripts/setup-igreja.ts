@@ -23,7 +23,7 @@ const firebaseConfig: FirebaseOptions = {
 // DADOS DA IGREJA
 // ============================================
 
-const IGREJA_ID = "igreja-principal";
+const IGREJA_ID = "igreja-missao-restaurar";
 
 const DADOS_IGREJA = {
   nome: "ADBras Santo Eduardo",

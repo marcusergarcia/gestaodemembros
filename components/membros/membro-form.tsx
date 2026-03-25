@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { addDoc, updateDoc, Timestamp } from "firebase/firestore";
-import { getIgrejaCollection, getIgrejaDoc } from "@/lib/firestore";
+import { getIgrejaCollection, getIgrejaDoc, IGREJA_ID_FIELD } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -224,9 +224,10 @@ export function MembroForm({ membro }: MembroFormProps) {
         await updateDoc(getIgrejaDoc(igrejaId, "membros", membro.id), membroData);
         toast.success("Membro atualizado com sucesso!");
       } else {
-        // Create new member
+        // Create new member - adiciona igrejaID para filtro
         await addDoc(getIgrejaCollection(igrejaId, "membros"), {
           ...membroData,
+          [IGREJA_ID_FIELD]: igrejaId,
           dataCadastro: Timestamp.now(),
           criadoPor: user.uid,
         });

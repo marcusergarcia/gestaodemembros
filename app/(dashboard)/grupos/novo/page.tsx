@@ -9,7 +9,7 @@ import {
   addDoc,
   Timestamp,
 } from "firebase/firestore";
-import { getIgrejaCollection } from "@/lib/firestore";
+import { getIgrejaCollection, IGREJA_ID_FIELD } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { GoogleMap } from "@/components/mapa/google-map";
 import { Button } from "@/components/ui/button";
@@ -81,7 +81,7 @@ export default function NovoGrupoPage() {
     }
 
     const membrosRef = getIgrejaCollection(igrejaId, "membros");
-    const q = query(membrosRef, where("ativo", "==", true));
+    const q = query(membrosRef, where(IGREJA_ID_FIELD, "==", igrejaId));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const membrosData: Membro[] = [];

@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
-import { query, onSnapshot } from "firebase/firestore";
-import { getIgrejaCollection } from "@/lib/firestore";
+import { query, onSnapshot, where } from "firebase/firestore";
+import { getIgrejaCollection, IGREJA_ID_FIELD } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ export default function AniversariantesPage() {
     }
 
     const membrosRef = getIgrejaCollection(igrejaId, "membros");
-    const q = query(membrosRef);
+    const q = query(membrosRef, where(IGREJA_ID_FIELD, "==", igrejaId));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const membrosData: Membro[] = [];

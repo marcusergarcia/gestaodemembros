@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { query, onSnapshot, where, Timestamp } from "firebase/firestore";
-import { getIgrejaCollection } from "@/lib/firestore";
+import { getIgrejaCollection, IGREJA_ID_FIELD } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -77,9 +77,9 @@ export default function RelatoriosPage() {
       setLoading(false);
     });
 
-    // Load members stats
+    // Load members stats - filtrar por igrejaID
     const membrosRef = getIgrejaCollection(igrejaId, "membros");
-    const unsubMembros = onSnapshot(query(membrosRef, where("ativo", "==", true)), (snapshot) => {
+    const unsubMembros = onSnapshot(query(membrosRef, where(IGREJA_ID_FIELD, "==", igrejaId)), (snapshot) => {
       const porTipo: Record<TipoMembro, number> = {
         visitante: 0,
         congregado: 0,

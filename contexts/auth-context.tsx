@@ -51,6 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           (docSnap) => {
             if (docSnap.exists()) {
               const userData = { uid: docSnap.id, ...docSnap.data() } as Usuario;
+              console.log("[v0] Usuario carregado:", userData);
+              console.log("[v0] igrejaId do usuario:", userData.igrejaId);
               setUsuario(userData);
               setIgrejaId(userData.igrejaId || null);
             } else {

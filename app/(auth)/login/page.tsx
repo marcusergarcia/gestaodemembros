@@ -241,7 +241,7 @@ export default function LoginPage() {
 
       // IMPORTANTE: Definir igrejaId para multi-tenant funcionar
       // Por padrão, novos usuários são associados à igreja principal
-      const DEFAULT_IGREJA_ID = "igreja-principal";
+      const DEFAULT_IGREJA_ID = "igreja-missao-restaurar";
 
       await setDoc(usersRef, {
         telefone: currentUser.phoneNumber,
