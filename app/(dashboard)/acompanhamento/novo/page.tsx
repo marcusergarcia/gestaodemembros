@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { addDoc, query, where, onSnapshot, Timestamp } from "firebase/firestore";
-import { getIgrejaCollection } from "@/lib/firestore";
+import { getIgrejaCollection, IGREJA_ID_FIELD } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -133,7 +133,7 @@ export default function NovoAcompanhamentoPage() {
     }
 
     const membrosRef = getIgrejaCollection(igrejaId, "membros");
-    const q = query(membrosRef, where("ativo", "==", true));
+    const q = query(membrosRef, where(IGREJA_ID_FIELD, "==", igrejaId));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data: Membro[] = [];

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { query, where, getDocs } from "firebase/firestore";
-import { getIgrejaCollection } from "@/lib/firestore";
+import { getIgrejaCollection, IGREJA_ID_FIELD } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log("[v0] Dashboard - igrejaId:", igrejaId);
+    
     if (!igrejaId) {
       setLoading(false);
       return;
@@ -45,11 +47,13 @@ export default function DashboardPage() {
 
     async function loadStats() {
       try {
-        // Get members count by type
+        // Get members count by type - filtrar por igrejaID
         const membrosRef = getIgrejaCollection(igrejaId, "membros");
+        console.log("[v0] Buscando membros com filtro:", IGREJA_ID_FIELD, "==", igrejaId);
         const membrosSnap = await getDocs(
-          query(membrosRef, where("ativo", "==", true))
+          query(membrosRef, where(IGREJA_ID_FIELD, "==", igrejaId))
         );
+        console.log("[v0] Membros encontrados:", membrosSnap.size);
 
         const porTipo: Record<TipoMembro, number> = {
           visitante: 0,

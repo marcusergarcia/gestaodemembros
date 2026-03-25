@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { query, where, onSnapshot, getDoc } from "firebase/firestore";
-import { getIgrejaCollection, getIgrejaDoc2 } from "@/lib/firestore";
+import { getIgrejaCollection, getIgrejaDoc2, IGREJA_ID_FIELD } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { GoogleMap } from "@/components/mapa/google-map";
 import { Button } from "@/components/ui/button";
@@ -75,7 +75,7 @@ export default function MapaPage() {
     }
 
     const membrosRef = getIgrejaCollection(igrejaId, "membros");
-    const q = query(membrosRef, where("ativo", "==", true));
+    const q = query(membrosRef, where(IGREJA_ID_FIELD, "==", igrejaId));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const membrosData: Membro[] = [];

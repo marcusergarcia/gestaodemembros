@@ -7,8 +7,9 @@ import {
   orderBy,
   onSnapshot,
   updateDoc,
+  where,
 } from "firebase/firestore";
-import { getIgrejaCollection, getIgrejaDoc } from "@/lib/firestore";
+import { getIgrejaCollection, getIgrejaDoc, IGREJA_ID_FIELD } from "@/lib/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -87,7 +88,7 @@ export default function MembrosPage() {
     }
 
     const membrosRef = getIgrejaCollection(igrejaId, "membros");
-    const q = query(membrosRef, orderBy("nome", "asc"));
+    const q = query(membrosRef, where(IGREJA_ID_FIELD, "==", igrejaId), orderBy("nome", "asc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const membrosData: Membro[] = [];
