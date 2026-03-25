@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
-import { collection, query, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { query, onSnapshot } from "firebase/firestore";
+import { getIgrejaCollection } from "@/lib/firestore";
+import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -17,13 +18,19 @@ import { ptBR } from "date-fns/locale";
 import { Membro, TIPOS_MEMBRO, CORES_TIPO } from "@/lib/types";
 
 export default function AniversariantesPage() {
+  const { igrejaId } = useAuth();
   const [membros, setMembros] = useState<Membro[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
 
   useEffect(() => {
-    const membrosRef = collection(db, "members");
+    if (!igrejaId) {
+      setLoading(false);
+      return;
+    }
+
+    const membrosRef = getIgrejaCollection(igrejaId, "membros");
     const q = query(membrosRef);
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -39,7 +46,7 @@ export default function AniversariantesPage() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [igrejaId]);
 
   // Get birthdays for the selected month
   const aniversariantesDoMes = useMemo(() => {

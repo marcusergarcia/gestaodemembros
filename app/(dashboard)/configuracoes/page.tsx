@@ -11,6 +11,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getIgrejaCollection } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +48,7 @@ import { Usuario, Grupo, NivelAcesso, NIVEIS_ACESSO } from "@/lib/types";
 
 export default function ConfiguracoesPage() {
   const router = useRouter();
-  const { usuario } = useAuth();
+  const { usuario, igrejaId } = useAuth();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,19 +64,29 @@ export default function ConfiguracoesPage() {
 
   // Load users and groups
   useEffect(() => {
+    if (!igrejaId) {
+      setLoading(false);
+      return;
+    }
+
+    // Users are at root level, filtered by igrejaId
     const usersRef = collection(db, "usuarios");
     const q = query(usersRef, orderBy("dataCriacao", "desc"));
 
     const unsubscribeUsers = onSnapshot(q, (snapshot) => {
       const usersData: Usuario[] = [];
       snapshot.forEach((docSnap) => {
-        usersData.push({ uid: docSnap.id, ...docSnap.data() } as Usuario);
+        const userData = { uid: docSnap.id, ...docSnap.data() } as Usuario;
+        // Only show users from the same church
+        if (userData.igrejaId === igrejaId) {
+          usersData.push(userData);
+        }
       });
       setUsuarios(usersData);
       setLoading(false);
     });
 
-    const gruposRef = collection(db, "grupos");
+    const gruposRef = getIgrejaCollection(igrejaId, "grupos");
     const unsubscribeGrupos = onSnapshot(gruposRef, (snapshot) => {
       const gruposData: Grupo[] = [];
       snapshot.forEach((docSnap) => {
@@ -88,7 +99,7 @@ export default function ConfiguracoesPage() {
       unsubscribeUsers();
       unsubscribeGrupos();
     };
-  }, []);
+  }, [igrejaId]);
 
   const handleChangeAccess = async (uid: string, novoNivel: NivelAcesso) => {
     try {

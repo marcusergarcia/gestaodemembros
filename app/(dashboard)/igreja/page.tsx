@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getDoc, setDoc, Timestamp } from "firebase/firestore";
+import { getIgrejaDoc2 } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { IgrejaForm } from "@/components/igreja/igreja-form";
 import { IgrejaView } from "@/components/igreja/igreja-view";
@@ -10,15 +10,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Igreja } from "@/lib/types";
 
 export default function IgrejaPage() {
-  const { usuario } = useAuth();
+  const { usuario, igrejaId } = useAuth();
   const [igreja, setIgreja] = useState<Igreja | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
+    if (!igrejaId) {
+      setLoading(false);
+      return;
+    }
+
     const loadIgreja = async () => {
       try {
-        const igrejaDoc = await getDoc(doc(db, "configuracoes", "igreja"));
+        const igrejaDoc = await getDoc(getIgrejaDoc2(igrejaId));
         if (igrejaDoc.exists()) {
           setIgreja({ id: igrejaDoc.id, ...igrejaDoc.data() } as Igreja);
         }
@@ -30,9 +35,11 @@ export default function IgrejaPage() {
     };
 
     loadIgreja();
-  }, []);
+  }, [igrejaId]);
 
   const handleSave = async (data: Omit<Igreja, "id" | "dataCadastro">) => {
+    if (!igrejaId) return;
+
     try {
       const igrejaData = {
         ...data,
@@ -41,8 +48,8 @@ export default function IgrejaPage() {
         atualizadoPor: usuario?.uid,
       };
 
-      await setDoc(doc(db, "configuracoes", "igreja"), igrejaData);
-      setIgreja({ id: "igreja", ...igrejaData } as Igreja);
+      await setDoc(getIgrejaDoc2(igrejaId), igrejaData);
+      setIgreja({ id: igrejaId, ...igrejaData } as Igreja);
       setEditing(false);
     } catch (error) {
       console.error("Erro ao salvar dados da igreja:", error);

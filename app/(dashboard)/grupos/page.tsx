@@ -3,16 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  collection,
   query,
   where,
   orderBy,
   onSnapshot,
-  doc,
   getDoc,
   updateDoc,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getIgrejaCollection, getIgrejaDoc } from "@/lib/firestore";
+import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -58,6 +57,7 @@ interface GrupoComDetalhes extends Grupo {
 }
 
 export default function GruposPage() {
+  const { igrejaId } = useAuth();
   const [grupos, setGrupos] = useState<GrupoComDetalhes[]>([]);
   const [loading, setLoading] = useState(true);
   const [grupoToDelete, setGrupoToDelete] = useState<GrupoComDetalhes | null>(
@@ -65,7 +65,12 @@ export default function GruposPage() {
   );
 
   useEffect(() => {
-    const gruposRef = collection(db, "grupos");
+    if (!igrejaId) {
+      setLoading(false);
+      return;
+    }
+
+    const gruposRef = getIgrejaCollection(igrejaId, "grupos");
     const q = query(
       gruposRef,
       where("ativo", "==", true),
@@ -80,7 +85,7 @@ export default function GruposPage() {
 
         // Fetch leader name
         if (grupo.liderMembroId) {
-          const liderDoc = await getDoc(doc(db, "members", grupo.liderMembroId));
+          const liderDoc = await getDoc(getIgrejaDoc(igrejaId, "membros", grupo.liderMembroId));
           if (liderDoc.exists()) {
             grupo.liderNome = liderDoc.data().nome;
           }
@@ -89,7 +94,7 @@ export default function GruposPage() {
         // Fetch first few member names
         const memberNames: string[] = [];
         for (const memberId of grupo.membrosIds.slice(0, 3)) {
-          const memberDoc = await getDoc(doc(db, "members", memberId));
+          const memberDoc = await getDoc(getIgrejaDoc(igrejaId, "membros", memberId));
           if (memberDoc.exists()) {
             memberNames.push(memberDoc.data().nome);
           }
@@ -104,13 +109,13 @@ export default function GruposPage() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [igrejaId]);
 
   const handleDelete = async () => {
-    if (!grupoToDelete) return;
+    if (!grupoToDelete || !igrejaId) return;
 
     try {
-      await updateDoc(doc(db, "grupos", grupoToDelete.id), {
+      await updateDoc(getIgrejaDoc(igrejaId, "grupos", grupoToDelete.id), {
         ativo: false,
       });
       toast.success("Grupo excluído com sucesso");

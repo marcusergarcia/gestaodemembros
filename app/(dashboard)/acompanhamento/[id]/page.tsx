@@ -3,8 +3,8 @@
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { doc, getDoc, deleteDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getDoc, deleteDoc } from "firebase/firestore";
+import { getIgrejaDoc } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,7 +58,7 @@ const ICONES_ACOMPANHAMENTO: Record<TipoAcompanhamento, React.ComponentType<{ cl
 export default function AcompanhamentoDetalhesPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const router = useRouter();
-  const { usuario } = useAuth();
+  const { usuario, igrejaId } = useAuth();
   const [acompanhamento, setAcompanhamento] = useState<Acompanhamento | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
@@ -66,9 +66,14 @@ export default function AcompanhamentoDetalhesPage({ params }: { params: Promise
   const canDelete = usuario?.nivelAcesso === "admin";
 
   useEffect(() => {
+    if (!igrejaId) {
+      setLoading(false);
+      return;
+    }
+
     async function loadAcompanhamento() {
       try {
-        const docRef = doc(db, "acompanhamentos", resolvedParams.id);
+        const docRef = getIgrejaDoc(igrejaId, "acompanhamentos", resolvedParams.id);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
@@ -86,14 +91,14 @@ export default function AcompanhamentoDetalhesPage({ params }: { params: Promise
     }
 
     loadAcompanhamento();
-  }, [resolvedParams.id, router]);
+  }, [resolvedParams.id, router, igrejaId]);
 
   const handleDelete = async () => {
-    if (!acompanhamento) return;
+    if (!acompanhamento || !igrejaId) return;
 
     setDeleting(true);
     try {
-      await deleteDoc(doc(db, "acompanhamentos", acompanhamento.id));
+      await deleteDoc(getIgrejaDoc(igrejaId, "acompanhamentos", acompanhamento.id));
       toast.success("Acompanhamento excluído com sucesso");
       router.push("/acompanhamento");
     } catch (error) {

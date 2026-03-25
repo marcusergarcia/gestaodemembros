@@ -3,14 +3,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-  collection,
   query,
   where,
   onSnapshot,
   addDoc,
   Timestamp,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getIgrejaCollection } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { GoogleMap } from "@/components/mapa/google-map";
 import { Button } from "@/components/ui/button";
@@ -56,7 +55,7 @@ import {
 
 export default function NovoGrupoPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, igrejaId } = useAuth();
 
   const [membros, setMembros] = useState<Membro[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,7 +75,12 @@ export default function NovoGrupoPage() {
 
   // Load members
   useEffect(() => {
-    const membrosRef = collection(db, "members");
+    if (!igrejaId) {
+      setLoading(false);
+      return;
+    }
+
+    const membrosRef = getIgrejaCollection(igrejaId, "membros");
     const q = query(membrosRef, where("ativo", "==", true));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -89,7 +93,7 @@ export default function NovoGrupoPage() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [igrejaId]);
 
   // Filter leaders/obreiros
   const lideres = membros.filter((m) =>
@@ -184,9 +188,14 @@ ${selectedMembers.map((m) => `- ${m.nome}: ${formatPhone(m.telefone)}`).join("\n
       return;
     }
 
+    if (!igrejaId) {
+      toast.error("Erro: igreja não identificada");
+      return;
+    }
+
     setSaving(true);
     try {
-      await addDoc(collection(db, "grupos"), {
+      await addDoc(getIgrejaCollection(igrejaId, "grupos"), {
         nome: nomeGrupo,
         tipo: tipoGrupo,
         liderUid: user?.uid,
@@ -199,7 +208,7 @@ ${selectedMembers.map((m) => `- ${m.nome}: ${formatPhone(m.telefone)}`).join("\n
       });
 
       toast.success("Grupo criado com sucesso!");
-      router.push("/dashboard/grupos");
+      router.push("/grupos");
     } catch (error) {
       console.error("Erro ao salvar grupo:", error);
       toast.error("Erro ao criar grupo");

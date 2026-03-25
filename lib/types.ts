@@ -69,6 +69,7 @@ export interface Usuario {
   nivelAcesso: NivelAcesso;
   membroId?: string;
   grupoId?: string; // ID do grupo que o líder gerencia
+  igrejaId: string; // ID da igreja (multi-tenant)
   ativo: boolean;
   dataCriacao: Timestamp;
 }
