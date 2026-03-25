@@ -239,12 +239,17 @@ export default function LoginPage() {
       // Create user document - first user is admin, others are obreiro
       const usersRef = doc(db, "usuarios", currentUser.uid);
 
+      // IMPORTANTE: Definir igrejaId para multi-tenant funcionar
+      // Por padrão, novos usuários são associados à igreja principal
+      const DEFAULT_IGREJA_ID = "igreja-principal";
+
       await setDoc(usersRef, {
         telefone: currentUser.phoneNumber,
         nome: name.trim(),
         nivelAcesso: "obreiro", // Default to obreiro, admin must be set manually in Firestore
+        igrejaId: DEFAULT_IGREJA_ID, // Associa o usuário à igreja
         ativo: true,
-        criadoEm: Timestamp.now(),
+        dataCriacao: Timestamp.now(),
       });
 
       toast.success("Conta criada com sucesso!");

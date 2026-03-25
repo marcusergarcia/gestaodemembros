@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { collection, addDoc, query, where, onSnapshot, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { addDoc, query, where, onSnapshot, Timestamp } from "firebase/firestore";
+import { getIgrejaCollection } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,7 +94,7 @@ type AcompanhamentoFormData = z.infer<typeof acompanhamentoSchema>;
 
 export default function NovoAcompanhamentoPage() {
   const router = useRouter();
-  const { user, usuario } = useAuth();
+  const { user, usuario, igrejaId } = useAuth();
   const [loading, setLoading] = useState(false);
   const [membros, setMembros] = useState<Membro[]>([]);
   const [loadingMembros, setLoadingMembros] = useState(true);
@@ -127,7 +127,12 @@ export default function NovoAcompanhamentoPage() {
   const isHospital = watchTipo === "visita_hospitalar";
 
   useEffect(() => {
-    const membrosRef = collection(db, "members");
+    if (!igrejaId) {
+      setLoadingMembros(false);
+      return;
+    }
+
+    const membrosRef = getIgrejaCollection(igrejaId, "membros");
     const q = query(membrosRef, where("ativo", "==", true));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -141,7 +146,7 @@ export default function NovoAcompanhamentoPage() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [igrejaId]);
 
   useEffect(() => {
     if (!canCreate) {
@@ -159,6 +164,11 @@ export default function NovoAcompanhamentoPage() {
     const membro = membros.find((m) => m.id === data.membroId);
     if (!membro) {
       toast.error("Membro não encontrado");
+      return;
+    }
+
+    if (!igrejaId) {
+      toast.error("Erro: igreja não identificada");
       return;
     }
 
@@ -190,7 +200,7 @@ export default function NovoAcompanhamentoPage() {
         };
       }
 
-      await addDoc(collection(db, "acompanhamentos"), acompanhamentoData);
+      await addDoc(getIgrejaCollection(igrejaId, "acompanhamentos"), acompanhamentoData);
       toast.success("Acompanhamento registrado com sucesso!");
       router.push("/acompanhamento");
     } catch (error) {

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { collection, query, onSnapshot, where, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { query, onSnapshot, where, Timestamp } from "firebase/firestore";
+import { getIgrejaCollection } from "@/lib/firestore";
+import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +53,7 @@ interface MembrosStats {
 }
 
 export default function RelatoriosPage() {
+  const { igrejaId } = useAuth();
   const [acompanhamentos, setAcompanhamentos] = useState<Acompanhamento[]>([]);
   const [membrosStats, setMembrosStats] = useState<MembrosStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,8 +61,13 @@ export default function RelatoriosPage() {
   const [filtroTipo, setFiltroTipo] = useState<TipoAcompanhamento | "todos">("todos");
 
   useEffect(() => {
+    if (!igrejaId) {
+      setLoading(false);
+      return;
+    }
+
     // Load acompanhamentos
-    const acompRef = collection(db, "acompanhamentos");
+    const acompRef = getIgrejaCollection(igrejaId, "acompanhamentos");
     const unsubAcomp = onSnapshot(query(acompRef), (snapshot) => {
       const data: Acompanhamento[] = [];
       snapshot.forEach((docSnap) => {
@@ -71,7 +78,7 @@ export default function RelatoriosPage() {
     });
 
     // Load members stats
-    const membrosRef = collection(db, "members");
+    const membrosRef = getIgrejaCollection(igrejaId, "membros");
     const unsubMembros = onSnapshot(query(membrosRef, where("ativo", "==", true)), (snapshot) => {
       const porTipo: Record<TipoMembro, number> = {
         visitante: 0,
@@ -98,7 +105,7 @@ export default function RelatoriosPage() {
       unsubAcomp();
       unsubMembros();
     };
-  }, []);
+  }, [igrejaId]);
 
   // Filter acompanhamentos by period
   const dataInicio = useMemo(() => {
