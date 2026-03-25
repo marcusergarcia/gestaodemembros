@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { query, where, onSnapshot, getDoc } from "firebase/firestore";
+import { getIgrejaCollection, getIgrejaDoc2 } from "@/lib/firestore";
+import { useAuth } from "@/contexts/auth-context";
 import { GoogleMap } from "@/components/mapa/google-map";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,7 @@ import {
 } from "@/lib/types";
 
 export default function MapaPage() {
+  const { igrejaId } = useAuth();
   const [membros, setMembros] = useState<Membro[]>([]);
   const [igreja, setIgreja] = useState<Igreja | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,9 +51,11 @@ export default function MapaPage() {
 
   // Load church data
   useEffect(() => {
+    if (!igrejaId) return;
+
     const loadIgreja = async () => {
       try {
-        const igrejaDoc = await getDoc(doc(db, "configuracoes", "igreja"));
+        const igrejaDoc = await getDoc(getIgrejaDoc2(igrejaId));
         if (igrejaDoc.exists()) {
           setIgreja({ id: igrejaDoc.id, ...igrejaDoc.data() } as Igreja);
         }
@@ -61,11 +65,16 @@ export default function MapaPage() {
     };
 
     loadIgreja();
-  }, []);
+  }, [igrejaId]);
 
   // Load members
   useEffect(() => {
-    const membrosRef = collection(db, "members");
+    if (!igrejaId) {
+      setLoading(false);
+      return;
+    }
+
+    const membrosRef = getIgrejaCollection(igrejaId, "membros");
     const q = query(membrosRef, where("ativo", "==", true));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -78,7 +87,7 @@ export default function MapaPage() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [igrejaId]);
 
   // Get unique bairros
   const bairros = Array.from(

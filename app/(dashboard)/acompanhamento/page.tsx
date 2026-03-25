@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { collection, query, orderBy, onSnapshot, limit } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { query, orderBy, onSnapshot, limit } from "firebase/firestore";
+import { getIgrejaCollection } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,7 @@ const ICONES_ACOMPANHAMENTO: Record<TipoAcompanhamento, React.ComponentType<{ cl
 };
 
 export default function AcompanhamentoPage() {
-  const { usuario } = useAuth();
+  const { usuario, igrejaId } = useAuth();
   const [acompanhamentos, setAcompanhamentos] = useState<Acompanhamento[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -60,7 +60,12 @@ export default function AcompanhamentoPage() {
                     usuario?.nivelAcesso === "obreiro";
 
   useEffect(() => {
-    const acompRef = collection(db, "acompanhamentos");
+    if (!igrejaId) {
+      setLoading(false);
+      return;
+    }
+
+    const acompRef = getIgrejaCollection(igrejaId, "acompanhamentos");
     const q = query(acompRef, orderBy("data", "desc"), limit(100));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -73,7 +78,7 @@ export default function AcompanhamentoPage() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [igrejaId]);
 
   const filteredAcompanhamentos = acompanhamentos.filter((acomp) => {
     const matchesSearch =

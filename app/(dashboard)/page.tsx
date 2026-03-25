@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { query, where, getDocs } from "firebase/firestore";
+import { getIgrejaCollection } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,15 +33,20 @@ interface DashboardStats {
 }
 
 export default function DashboardPage() {
-  const { usuario } = useAuth();
+  const { usuario, igrejaId } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!igrejaId) {
+      setLoading(false);
+      return;
+    }
+
     async function loadStats() {
       try {
         // Get members count by type
-        const membrosRef = collection(db, "members");
+        const membrosRef = getIgrejaCollection(igrejaId, "membros");
         const membrosSnap = await getDocs(
           query(membrosRef, where("ativo", "==", true))
         );
@@ -92,7 +97,7 @@ export default function DashboardPage() {
         });
 
         // Get groups count
-        const gruposRef = collection(db, "grupos");
+        const gruposRef = getIgrejaCollection(igrejaId, "grupos");
         const gruposSnap = await getDocs(
           query(gruposRef, where("ativo", "==", true))
         );
@@ -113,7 +118,7 @@ export default function DashboardPage() {
     }
 
     loadStats();
-  }, []);
+  }, [igrejaId]);
 
   return (
     <div className="space-y-6">
