@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { query, where, onSnapshot } from "firebase/firestore";
+import { useIgreja } from "@/contexts/igreja-context";
+import { getMembrosRef } from "@/lib/firestore-helpers";
 import { GoogleMap } from "@/components/mapa/google-map";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,8 +39,8 @@ import {
 } from "@/lib/types";
 
 export default function MapaPage() {
+  const { igreja, igrejaId } = useIgreja();
   const [membros, setMembros] = useState<Membro[]>([]);
-  const [igreja, setIgreja] = useState<Igreja | null>(null);
   const [loading, setLoading] = useState(true);
   const [filterTipo, setFilterTipo] = useState<TipoMembro | "todos">("todos");
   const [filterCargo, setFilterCargo] = useState<CargoMembro | "todos">("todos");
@@ -47,25 +48,14 @@ export default function MapaPage() {
   const [selectedMembro, setSelectedMembro] = useState<Membro | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
-  // Load church data
-  useEffect(() => {
-    const loadIgreja = async () => {
-      try {
-        const igrejaDoc = await getDoc(doc(db, "configuracoes", "igreja"));
-        if (igrejaDoc.exists()) {
-          setIgreja({ id: igrejaDoc.id, ...igrejaDoc.data() } as Igreja);
-        }
-      } catch (error) {
-        console.error("Erro ao carregar dados da igreja:", error);
-      }
-    };
-
-    loadIgreja();
-  }, []);
-
   // Load members
   useEffect(() => {
-    const membrosRef = collection(db, "members");
+    if (!igrejaId) {
+      setLoading(false);
+      return;
+    }
+
+    const membrosRef = getMembrosRef(igrejaId);
     const q = query(membrosRef, where("ativo", "==", true));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -78,7 +68,7 @@ export default function MapaPage() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [igrejaId]);
 
   // Get unique bairros
   const bairros = Array.from(

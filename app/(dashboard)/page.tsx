@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { query, where, getDocs } from "firebase/firestore";
 import { useAuth } from "@/contexts/auth-context";
+import { useIgreja } from "@/contexts/igreja-context";
+import { getMembrosRef, getGruposRef } from "@/lib/firestore-helpers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,14 +35,20 @@ interface DashboardStats {
 
 export default function DashboardPage() {
   const { usuario } = useAuth();
+  const { igrejaId, igreja } = useIgreja();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadStats() {
+      if (!igrejaId) {
+        setLoading(false);
+        return;
+      }
+
       try {
         // Get members count by type
-        const membrosRef = collection(db, "members");
+        const membrosRef = getMembrosRef(igrejaId);
         const membrosSnap = await getDocs(
           query(membrosRef, where("ativo", "==", true))
         );
@@ -92,7 +99,7 @@ export default function DashboardPage() {
         });
 
         // Get groups count
-        const gruposRef = collection(db, "grupos");
+        const gruposRef = getGruposRef(igrejaId);
         const gruposSnap = await getDocs(
           query(gruposRef, where("ativo", "==", true))
         );
@@ -113,7 +120,7 @@ export default function DashboardPage() {
     }
 
     loadStats();
-  }, []);
+  }, [igrejaId]);
 
   return (
     <div className="space-y-6">

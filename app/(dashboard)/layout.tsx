@@ -6,6 +6,7 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { Header } from "@/components/dashboard/header";
 import { useAuth } from "@/contexts/auth-context";
+import { useIgreja } from "@/contexts/igreja-context";
 import { Spinner } from "@/components/ui/spinner";
 import { SetupRequired } from "@/components/setup-required";
 
@@ -15,6 +16,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { user, usuario, loading, isConfigured } = useAuth();
+  const { needsOnboarding, loading: igrejaLoading } = useIgreja();
   const router = useRouter();
 
   useEffect(() => {
@@ -23,12 +25,19 @@ export default function DashboardLayout({
     }
   }, [user, loading, isConfigured, router]);
 
+  // Redireciona para onboarding se usuário não tem igreja vinculada
+  useEffect(() => {
+    if (!loading && !igrejaLoading && user && usuario && needsOnboarding) {
+      router.push("/onboarding");
+    }
+  }, [user, usuario, loading, igrejaLoading, needsOnboarding, router]);
+
   // Show setup page if Firebase is not configured
   if (!isConfigured) {
     return <SetupRequired />;
   }
 
-  if (loading) {
+  if (loading || igrejaLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-4">

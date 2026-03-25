@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { doc, getDoc, collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getDoc, query, where, orderBy, onSnapshot } from "firebase/firestore";
+import { useIgreja } from "@/contexts/igreja-context";
+import { getMembroDocRef, getAcompanhamentosRef } from "@/lib/firestore-helpers";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,21 +51,27 @@ const ICONES_ACOMPANHAMENTO: Record<TipoAcompanhamento, React.ComponentType<{ cl
 export default function MembroDetalhesPage() {
   const params = useParams();
   const router = useRouter();
+  const { igrejaId } = useIgreja();
   const [membro, setMembro] = useState<Membro | null>(null);
   const [acompanhamentos, setAcompanhamentos] = useState<Acompanhamento[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingAcomp, setLoadingAcomp] = useState(true);
 
   useEffect(() => {
+    if (!igrejaId) {
+      setLoading(false);
+      return;
+    }
+
     async function loadMembro() {
       try {
-        const docRef = doc(db, "members", params.id as string);
+        const docRef = getMembroDocRef(igrejaId, params.id as string);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
           setMembro({ id: docSnap.id, ...docSnap.data() } as Membro);
         } else {
-          router.push("/dashboard/membros");
+          router.push("/membros");
         }
       } catch (error) {
         console.error("Erro ao carregar membro:", error);
@@ -76,7 +83,7 @@ export default function MembroDetalhesPage() {
     loadMembro();
 
     // Load acompanhamentos for this member
-    const acompRef = collection(db, "acompanhamentos");
+    const acompRef = getAcompanhamentosRef(igrejaId);
     const acompQuery = query(
       acompRef,
       where("membroId", "==", params.id),
@@ -93,7 +100,7 @@ export default function MembroDetalhesPage() {
     });
 
     return () => unsubscribe();
-  }, [params.id, router]);
+  }, [params.id, router, igrejaId]);
 
   const formatPhone = (phone: string) => {
     if (phone.length === 11) {

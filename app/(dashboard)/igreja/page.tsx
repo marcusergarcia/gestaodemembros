@@ -1,48 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
+import { useState } from "react";
+import { doc, updateDoc, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/auth-context";
+import { useIgreja } from "@/contexts/igreja-context";
 import { IgrejaForm } from "@/components/igreja/igreja-form";
 import { IgrejaView } from "@/components/igreja/igreja-view";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Igreja } from "@/lib/types";
+import { getIgrejaDocRef, isAdminOrHigher } from "@/lib/firestore-helpers";
 
 export default function IgrejaPage() {
   const { usuario } = useAuth();
-  const [igreja, setIgreja] = useState<Igreja | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { igreja, igrejaId, loading } = useIgreja();
   const [editing, setEditing] = useState(false);
 
-  useEffect(() => {
-    const loadIgreja = async () => {
-      try {
-        const igrejaDoc = await getDoc(doc(db, "configuracoes", "igreja"));
-        if (igrejaDoc.exists()) {
-          setIgreja({ id: igrejaDoc.id, ...igrejaDoc.data() } as Igreja);
-        }
-      } catch (error) {
-        console.error("Erro ao carregar dados da igreja:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadIgreja();
-  }, []);
-
   const handleSave = async (data: Omit<Igreja, "id" | "dataCadastro">) => {
+    if (!igrejaId) return;
+    
     try {
       const igrejaData = {
         ...data,
-        dataCadastro: igreja?.dataCadastro || Timestamp.now(),
         dataAtualizacao: Timestamp.now(),
         atualizadoPor: usuario?.uid,
       };
 
-      await setDoc(doc(db, "configuracoes", "igreja"), igrejaData);
-      setIgreja({ id: "igreja", ...igrejaData } as Igreja);
+      await updateDoc(getIgrejaDocRef(igrejaId), igrejaData);
       setEditing(false);
     } catch (error) {
       console.error("Erro ao salvar dados da igreja:", error);
@@ -65,23 +49,30 @@ export default function IgrejaPage() {
     );
   }
 
-  const isAdmin = usuario?.nivelAcesso === "admin";
-  const showForm = editing || !igreja;
+  if (!igreja) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <p className="text-muted-foreground">Nenhuma igreja vinculada à sua conta.</p>
+      </div>
+    );
+  }
+
+  const isAdmin = isAdminOrHigher(usuario?.nivelAcesso);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Dados da Igreja</h1>
         <p className="text-muted-foreground">
-          {igreja ? "Informações cadastradas da igreja" : "Cadastre as informações da sua igreja"}
+          Informações cadastradas da igreja
         </p>
       </div>
 
-      {showForm ? (
+      {editing ? (
         <IgrejaForm
-          igreja={igreja || undefined}
+          igreja={igreja}
           onSave={handleSave}
-          onCancel={igreja ? () => setEditing(false) : undefined}
+          onCancel={() => setEditing(false)}
         />
       ) : (
         <IgrejaView

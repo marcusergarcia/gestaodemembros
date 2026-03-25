@@ -3,15 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  collection,
   query,
   orderBy,
   onSnapshot,
-  doc,
   updateDoc,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
+import { useIgreja } from "@/contexts/igreja-context";
+import { getMembrosRef, getMembroDocRef } from "@/lib/firestore-helpers";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -72,6 +71,7 @@ import {
 
 export default function MembrosPage() {
   const { usuario } = useAuth();
+  const { igrejaId } = useIgreja();
   const [membros, setMembros] = useState<Membro[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -79,11 +79,16 @@ export default function MembrosPage() {
   const [filterCargo, setFilterCargo] = useState<CargoMembro | "todos">("todos");
   const [memberToDeactivate, setMemberToDeactivate] = useState<Membro | null>(null);
 
-  const isAdmin = usuario?.nivelAcesso === "admin";
+  const isAdmin = usuario?.nivelAcesso === "admin" || usuario?.nivelAcesso === "superadmin";
   const isLider = usuario?.nivelAcesso === "lider";
 
   useEffect(() => {
-    const membrosRef = collection(db, "members");
+    if (!igrejaId) {
+      setLoading(false);
+      return;
+    }
+
+    const membrosRef = getMembrosRef(igrejaId);
     const q = query(membrosRef, orderBy("nome", "asc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -96,7 +101,7 @@ export default function MembrosPage() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [igrejaId]);
 
   const filteredMembros = membros.filter((membro) => {
     // Only show active members
@@ -125,10 +130,10 @@ export default function MembrosPage() {
   });
 
   const handleDeactivate = async () => {
-    if (!memberToDeactivate) return;
+    if (!memberToDeactivate || !igrejaId) return;
 
     try {
-      await updateDoc(doc(db, "members", memberToDeactivate.id), {
+      await updateDoc(getMembroDocRef(igrejaId, memberToDeactivate.id), {
         ativo: false,
       });
       toast.success("Membro desativado com sucesso");

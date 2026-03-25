@@ -150,8 +150,12 @@ export function IgrejaView({ igreja, onEdit }: IgrejaViewProps) {
             <div className="text-center sm:text-left">
               <h2 className="text-xl font-bold">{igreja.nome}</h2>
               <div className="mt-1 flex flex-wrap justify-center gap-2 sm:justify-start">
-                <Badge variant="secondary">{igreja.convencao}</Badge>
-                <Badge variant="outline">{igreja.sede}</Badge>
+                {igreja.convencao ? (
+                  <Badge variant="secondary">{igreja.convencao}</Badge>
+                ) : (
+                  <Badge variant="outline">Igreja Independente</Badge>
+                )}
+                {igreja.sede && <Badge variant="outline">{igreja.sede}</Badge>}
               </div>
             </div>
           </div>
@@ -160,29 +164,33 @@ export function IgrejaView({ igreja, onEdit }: IgrejaViewProps) {
 
           {/* Details */}
           <div className="space-y-4">
-            <div className="flex items-start gap-3">
-              <User className="mt-0.5 h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Dirigente</p>
-                <p className="font-medium">{igreja.dirigente}</p>
+            {(igreja.dirigenteNome || igreja.dirigenteMemberId) && (
+              <div className="flex items-start gap-3">
+                <User className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Dirigente</p>
+                  <p className="font-medium">{igreja.dirigenteNome || "Não informado"}</p>
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="flex items-start gap-3">
               <Building2 className="mt-0.5 h-5 w-5 text-muted-foreground" />
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Convenção</p>
-                <p className="font-medium">{igreja.convencao}</p>
+                <p className="text-sm font-medium text-muted-foreground">Organização</p>
+                <p className="font-medium">{igreja.convencao || "Igreja Independente"}</p>
               </div>
             </div>
 
-            <div className="flex items-start gap-3">
-              <Flag className="mt-0.5 h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Sede</p>
-                <p className="font-medium">{igreja.sede}</p>
+            {igreja.sede && (
+              <div className="flex items-start gap-3">
+                <Flag className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Sede/Campo</p>
+                  <p className="font-medium">{igreja.sede}</p>
+                </div>
               </div>
-            </div>
+            )}
 
             {igreja.telefone && (
               <div className="flex items-start gap-3">

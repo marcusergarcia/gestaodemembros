@@ -243,12 +243,13 @@ export default function LoginPage() {
         telefone: currentUser.phoneNumber,
         nome: name.trim(),
         nivelAcesso: "obreiro", // Default to obreiro, admin must be set manually in Firestore
+        igrejaId: null, // Será definido no onboarding
         ativo: true,
-        criadoEm: Timestamp.now(),
+        dataCriacao: Timestamp.now(),
       });
 
       toast.success("Conta criada com sucesso!");
-      router.push("/");
+      router.push("/onboarding");
     } catch (err: unknown) {
       console.error("Erro ao criar usuário:", err);
       

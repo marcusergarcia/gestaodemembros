@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { collection, query, orderBy, onSnapshot, limit } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { query, orderBy, onSnapshot, limit } from "firebase/firestore";
 import { useAuth } from "@/contexts/auth-context";
+import { useIgreja } from "@/contexts/igreja-context";
+import { getAcompanhamentosRef } from "@/lib/firestore-helpers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,17 +51,24 @@ const ICONES_ACOMPANHAMENTO: Record<TipoAcompanhamento, React.ComponentType<{ cl
 
 export default function AcompanhamentoPage() {
   const { usuario } = useAuth();
+  const { igrejaId } = useIgreja();
   const [acompanhamentos, setAcompanhamentos] = useState<Acompanhamento[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterTipo, setFilterTipo] = useState<TipoAcompanhamento | "todos">("todos");
 
   const canCreate = usuario?.nivelAcesso === "admin" || 
+                    usuario?.nivelAcesso === "superadmin" ||
                     usuario?.nivelAcesso === "lider" || 
                     usuario?.nivelAcesso === "obreiro";
 
   useEffect(() => {
-    const acompRef = collection(db, "acompanhamentos");
+    if (!igrejaId) {
+      setLoading(false);
+      return;
+    }
+
+    const acompRef = getAcompanhamentosRef(igrejaId);
     const q = query(acompRef, orderBy("data", "desc"), limit(100));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -73,7 +81,7 @@ export default function AcompanhamentoPage() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [igrejaId]);
 
   const filteredAcompanhamentos = acompanhamentos.filter((acomp) => {
     const matchesSearch =

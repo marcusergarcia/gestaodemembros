@@ -10,7 +10,7 @@ export type CargoMembro =
   | "auxiliar_escala"
   | "outro";
 
-export type NivelAcesso = "admin" | "lider" | "obreiro";
+export type NivelAcesso = "superadmin" | "admin" | "lider" | "obreiro";
 
 export type TipoGrupo = "estudo" | "visita" | "acompanhamento";
 
@@ -49,15 +49,17 @@ export interface Igreja {
   nome: string;
   endereco: Endereco;
   coordenadas: Coordenadas;
-  convencao: string;
-  sede: string;
-  dirigente: string;
+  convencao: string | null; // null = igreja independente
+  sede: string | null; // null = sem sede
+  dirigenteMemberId: string | null; // referência ao membro dirigente
+  dirigenteNome?: string; // nome do dirigente (desnormalizado para exibição)
   fotoUrl?: string;
   telefone?: string;
   email?: string;
   dataCadastro: Timestamp;
   atualizadoPor?: string;
   dataAtualizacao?: Timestamp;
+  ativo: boolean;
 }
 
 
@@ -67,6 +69,7 @@ export interface Usuario {
   telefone: string;
   nome: string;
   nivelAcesso: NivelAcesso;
+  igrejaId: string | null; // referência à igreja (null = sem igreja vinculada)
   membroId?: string;
   grupoId?: string; // ID do grupo que o líder gerencia
   ativo: boolean;
@@ -141,6 +144,7 @@ export const CARGOS_MEMBRO: Record<CargoMembro, string> = {
 };
 
 export const NIVEIS_ACESSO: Record<NivelAcesso, string> = {
+  superadmin: "Super Administrador",
   admin: "Administrador",
   lider: "Líder",
   obreiro: "Obreiro",

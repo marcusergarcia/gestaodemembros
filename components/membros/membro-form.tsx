@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { collection, addDoc, doc, updateDoc, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { addDoc, updateDoc, Timestamp } from "firebase/firestore";
 import { useAuth } from "@/contexts/auth-context";
+import { useIgreja } from "@/contexts/igreja-context";
+import { getMembrosRef, getMembroDocRef } from "@/lib/firestore-helpers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -78,6 +79,7 @@ interface MembroFormProps {
 export function MembroForm({ membro }: MembroFormProps) {
   const router = useRouter();
   const { user } = useAuth();
+  const { igrejaId } = useIgreja();
   const [loading, setLoading] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
   const [loadingGeo, setLoadingGeo] = useState(false);
@@ -189,8 +191,8 @@ export function MembroForm({ membro }: MembroFormProps) {
       return;
     }
 
-    if (!user) {
-      toast.error("Você precisa estar logado");
+    if (!user || !igrejaId) {
+      toast.error("Você precisa estar logado e vinculado a uma igreja");
       return;
     }
 
@@ -221,11 +223,11 @@ export function MembroForm({ membro }: MembroFormProps) {
 
       if (membro) {
         // Update existing member
-        await updateDoc(doc(db, "members", membro.id), membroData);
+        await updateDoc(getMembroDocRef(igrejaId, membro.id), membroData);
         toast.success("Membro atualizado com sucesso!");
       } else {
         // Create new member
-        await addDoc(collection(db, "members"), {
+        await addDoc(getMembrosRef(igrejaId), {
           ...membroData,
           dataCadastro: Timestamp.now(),
           criadoPor: user.uid,
