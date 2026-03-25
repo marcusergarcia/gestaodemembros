@@ -50,10 +50,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           userDocRef, 
           (docSnap) => {
             if (docSnap.exists()) {
-              const userData = { uid: docSnap.id, ...docSnap.data() } as Usuario;
+              const rawData = docSnap.data();
+              console.log("[v0] Dados do usuário no Firestore:", rawData);
+              const userData = { uid: docSnap.id, ...rawData } as Usuario;
               setUsuario(userData);
-              setIgrejaId(userData.igrejaId || null);
+              // Suporta tanto igrejaId quanto igrejaID (para compatibilidade com banco)
+              const igrejaIdValue = userData.igrejaId || (rawData as { igrejaID?: string }).igrejaID || null;
+              console.log("[v0] igrejaId extraído:", igrejaIdValue);
+              setIgrejaId(igrejaIdValue);
             } else {
+              console.log("[v0] Documento do usuário não existe");
               setUsuario(null);
               setIgrejaId(null);
             }

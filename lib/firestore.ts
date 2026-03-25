@@ -35,7 +35,25 @@ export function getIgrejaDoc2(igrejaId: string) {
 // Nomes das coleções padronizados
 export const COLLECTIONS = {
   MEMBROS: "membros",
+  MEMBERS: "members", // Coleção alternativa na raiz (estrutura flat)
   GRUPOS: "grupos",
   ACOMPANHAMENTOS: "acompanhamentos",
   USUARIOS: "usuarios", // Usuários ficam na raiz, com igrejaId no documento
 } as const;
+
+/**
+ * Retorna a referência da coleção de membros na raiz (estrutura flat)
+ * Usada quando os membros estão em /members com campo igrejaID
+ */
+export function getMembersCollection() {
+  if (!db) throw new Error("Firebase não configurado");
+  return collection(db, "members");
+}
+
+/**
+ * Retorna a referência de um documento de membro na coleção raiz
+ */
+export function getMemberDoc(memberId: string) {
+  if (!db) throw new Error("Firebase não configurado");
+  return doc(db, "members", memberId);
+}

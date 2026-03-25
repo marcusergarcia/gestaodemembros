@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { query, where, getDocs } from "firebase/firestore";
-import { getIgrejaCollection } from "@/lib/firestore";
+import { getIgrejaCollection, getMembersCollection } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,11 +45,15 @@ export default function DashboardPage() {
 
     async function loadStats() {
       try {
-        // Get members count by type
-        const membrosRef = getIgrejaCollection(igrejaId, "membros");
+        // Get members count by type - busca na coleção raiz "members" filtrando pela igreja
+        const membrosRef = getMembersCollection();
+        // Nota: não filtra por "ativo" pois o campo pode não existir em todos os docs
         const membrosSnap = await getDocs(
-          query(membrosRef, where("ativo", "==", true))
+          query(membrosRef, where("igrejaID", "==", igrejaId))
         );
+        
+        console.log("[v0] igrejaId usado:", igrejaId);
+        console.log("[v0] Membros encontrados:", membrosSnap.size);
 
         const porTipo: Record<TipoMembro, number> = {
           visitante: 0,

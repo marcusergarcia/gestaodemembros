@@ -239,15 +239,15 @@ export default function LoginPage() {
       // Create user document - first user is admin, others are obreiro
       const usersRef = doc(db, "usuarios", currentUser.uid);
 
-      // IMPORTANTE: Definir igrejaId para multi-tenant funcionar
-      // Por padrão, novos usuários são associados à igreja principal
-      const DEFAULT_IGREJA_ID = "igreja-principal";
+      // IMPORTANTE: Definir igrejaID para multi-tenant funcionar
+      // Por padrão, novos usuários são associados à igreja missão restaurar
+      const DEFAULT_IGREJA_ID = "igreja-missao-restaurar";
 
       await setDoc(usersRef, {
         telefone: currentUser.phoneNumber,
         nome: name.trim(),
         nivelAcesso: "obreiro", // Default to obreiro, admin must be set manually in Firestore
-        igrejaId: DEFAULT_IGREJA_ID, // Associa o usuário à igreja
+        igrejaID: DEFAULT_IGREJA_ID, // Associa o usuário à igreja (com D maiúsculo para compatibilidade)
         ativo: true,
         dataCriacao: Timestamp.now(),
       });
