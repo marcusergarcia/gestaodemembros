@@ -5,10 +5,11 @@ import Link from "next/link";
 import {
   query,
   orderBy,
+  where,
   onSnapshot,
   updateDoc,
 } from "firebase/firestore";
-import { getIgrejaCollection, getIgrejaDoc } from "@/lib/firestore";
+import { getMembersCollection, getMemberDoc } from "@/lib/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -86,24 +87,41 @@ export default function MembrosPage() {
       return;
     }
 
-    const membrosRef = getIgrejaCollection(igrejaId, "membros");
-    const q = query(membrosRef, orderBy("nome", "asc"));
+    // Busca membros na coleção raiz "members" filtrando por igrejaID
+    const membrosRef = getMembersCollection();
+    const q = query(
+      membrosRef, 
+      where("igrejaID", "==", igrejaId),
+      orderBy("nome", "asc")
+    );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const membrosData: Membro[] = [];
-      snapshot.forEach((docSnap) => {
-        membrosData.push({ id: docSnap.id, ...docSnap.data() } as Membro);
-      });
-      setMembros(membrosData);
-      setLoading(false);
-    });
+    console.log("[v0] Buscando membros com igrejaID:", igrejaId);
+    
+    const unsubscribe = onSnapshot(
+      q, 
+      (snapshot) => {
+        console.log("[v0] Membros encontrados:", snapshot.size);
+        const membrosData: Membro[] = [];
+        snapshot.forEach((docSnap) => {
+          console.log("[v0] Membro:", docSnap.id, docSnap.data());
+          membrosData.push({ id: docSnap.id, ...docSnap.data() } as Membro);
+        });
+        setMembros(membrosData);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("[v0] Erro ao buscar membros:", error);
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [igrejaId]);
 
   const filteredMembros = membros.filter((membro) => {
-    // Only show active members
-    if (!membro.ativo) return false;
+    // Only hide explicitly inactive members (field ativo === false)
+    // If ativo is undefined, show the member
+    if (membro.ativo === false) return false;
 
     // If user is a leader, only show members from their group
     if (isLider && usuario?.grupoId) {
@@ -131,7 +149,7 @@ export default function MembrosPage() {
     if (!memberToDeactivate || !igrejaId) return;
 
     try {
-      await updateDoc(getIgrejaDoc(igrejaId, "membros", memberToDeactivate.id), {
+      await updateDoc(getMemberDoc(memberToDeactivate.id), {
         ativo: false,
       });
       toast.success("Membro desativado com sucesso");

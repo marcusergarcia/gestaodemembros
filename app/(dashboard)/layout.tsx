@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { Spinner } from "@/components/ui/spinner";
 import { SetupRequired } from "@/components/setup-required";
 
-const DEFAULT_IGREJA_ID = "igreja-principal";
+const DEFAULT_IGREJA_ID = "igreja-missao-restaurar";
 
 export default function DashboardLayout({
   children,
@@ -28,20 +28,18 @@ export default function DashboardLayout({
     }
   }, [user, loading, isConfigured, router]);
 
-  // Auto-fix: Se o usuário existe mas não tem igrejaId, adiciona automaticamente
+  // Auto-fix: Se o usuário existe mas não tem igrejaID, adiciona automaticamente
   useEffect(() => {
     const fixMissingIgrejaId = async () => {
       if (!loading && user && usuario && !igrejaId && db && !fixingIgrejaId) {
         setFixingIgrejaId(true);
         try {
-          console.log("[v0] Usuário sem igrejaId detectado, corrigindo...");
           await updateDoc(doc(db, "usuarios", user.uid), {
-            igrejaId: DEFAULT_IGREJA_ID,
+            igrejaID: DEFAULT_IGREJA_ID, // Com D maiúsculo para compatibilidade com o banco
           });
-          console.log("[v0] igrejaId adicionado com sucesso!");
           // O AuthContext vai recarregar automaticamente via onSnapshot
         } catch (error) {
-          console.error("[v0] Erro ao adicionar igrejaId:", error);
+          console.error("Erro ao adicionar igrejaID:", error);
         }
       }
     };
