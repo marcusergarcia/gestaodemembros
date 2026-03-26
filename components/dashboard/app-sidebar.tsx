@@ -82,6 +82,11 @@ const adminItems = [
     icon: Church,
   },
   {
+    title: "Usuários",
+    href: "/usuarios",
+    icon: Users,
+  },
+  {
     title: "Configurações",
     href: "/configuracoes",
     icon: Settings,
