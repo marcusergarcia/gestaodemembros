@@ -12,6 +12,7 @@ export const COLLECTIONS = {
   IGREJAS: "igrejas",
   UNIDADES: "unidades",
   MEMBROS: "membros",
+  VISITANTES: "visitantes",
   GRUPOS: "grupos",
   ACOMPANHAMENTOS: "acompanhamentos",
   USUARIOS: "usuarios",
@@ -167,6 +168,27 @@ export async function getUnidadesAcessiveis(
   // Admin: sua unidade + filhas
   const filhas = await getUnidadesFilhas(igrejaId, unidadeId);
   return [unidadeId, ...filhas];
+}
+
+/**
+ * Retorna a referência da coleção de visitantes de uma unidade
+ */
+export function getVisitantesCollection(igrejaId: string, unidadeId: string) {
+  if (!db) throw new Error("Firebase não configurado");
+  if (!igrejaId) throw new Error("igrejaId é obrigatório");
+  if (!unidadeId) throw new Error("unidadeId é obrigatório");
+  return collection(db, COLLECTIONS.IGREJAS, igrejaId, COLLECTIONS.UNIDADES, unidadeId, COLLECTIONS.VISITANTES);
+}
+
+/**
+ * Retorna a referência do documento de um visitante
+ */
+export function getVisitanteDoc(igrejaId: string, unidadeId: string, visitanteId: string) {
+  if (!db) throw new Error("Firebase não configurado");
+  if (!igrejaId) throw new Error("igrejaId é obrigatório");
+  if (!unidadeId) throw new Error("unidadeId é obrigatório");
+  if (!visitanteId) throw new Error("visitanteId é obrigatório");
+  return doc(db, COLLECTIONS.IGREJAS, igrejaId, COLLECTIONS.UNIDADES, unidadeId, COLLECTIONS.VISITANTES, visitanteId);
 }
 
 /**

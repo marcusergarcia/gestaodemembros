@@ -230,3 +230,34 @@ export const CORES_CARGO: Record<CargoMembro, string> = {
   auxiliar_escala: "#84cc16", // lime
   outro: "#6b7280", // gray
 };
+
+// ============ VISITANTES ============
+
+export interface Acompanhante {
+  nome: string;
+  telefone: string;
+  dataNascimento?: Timestamp;
+  parentesco?: string;
+}
+
+export interface Visitante {
+  id: string;
+  nome: string;
+  telefone: string;
+  dataNascimento?: Timestamp;
+  dataVisita: Timestamp;
+  acompanhantes?: Acompanhante[];
+  jaRecebeuJesus?: boolean;
+  pertenceIgreja?: boolean;
+  qualIgreja?: string;
+  primeiraVisita?: boolean;
+  convidadoPor?: string;
+  pedidoOracao?: string;
+  observacoes?: string;
+  unidadeId: string;
+  convertidoParaMembro?: boolean;
+  membroId?: string; // ID do membro se foi convertido
+  ativo: boolean;
+  dataCriacao: Timestamp;
+  criadoPor?: string;
+}

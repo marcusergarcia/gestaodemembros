@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Users,
+  UserPlus,
   Map,
   UsersRound,
   LayoutDashboard,
@@ -42,6 +43,11 @@ const menuItems = [
     title: "Membros",
     href: "/membros",
     icon: Users,
+  },
+  {
+    title: "Visitantes",
+    href: "/visitantes",
+    icon: UserPlus,
   },
   {
     title: "Mapa",

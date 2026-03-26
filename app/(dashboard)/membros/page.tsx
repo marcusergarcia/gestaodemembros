@@ -131,8 +131,9 @@ export default function MembrosPage() {
   }, [igrejaId, unidadesAcessiveis]);
 
   const filteredMembros = membros.filter((membro) => {
-    // Only show active members
+    // Only show active members (exclude visitantes - they have their own page now)
     if (!membro.ativo) return false;
+    if (membro.tipo === "visitante") return false;
 
     // Unidade filter
     if (filterUnidade !== "todos" && membro.unidadeId !== filterUnidade) return false;
