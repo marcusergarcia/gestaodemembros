@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { doc, setDoc, collection, addDoc, Timestamp, getDocs, query, where } from "firebase/firestore";
+import { doc, setDoc, collection, addDoc, Timestamp, getDocs, getDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
   CardContent,
@@ -24,16 +23,19 @@ import {
 } from "@/components/ui/select";
 import { Field, FieldGroup, FieldLabel, FieldError, FieldDescription } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
-import { Church, MapPin, User, Building2, ArrowRight } from "lucide-react";
+import { Church, MapPin, Building2, ArrowRight, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { TipoIgreja, Igreja } from "@/lib/types";
 
-type TipoSelecionado = "sede" | "congregacao" | "subcongregacao" | "nao_definido";
+type TipoSelecionado = "sede" | "congregacao" | "subcongregacao";
 
 interface IgrejaExistente {
   id: string;
   nome: string;
   tipo: TipoIgreja;
+  convencao?: string;
+  sedeId?: string;
+  igrejaPaiId?: string;
 }
 
 export default function SetupIgrejaPage() {
@@ -63,12 +65,25 @@ export default function SetupIgrejaPage() {
   const [cidade, setCidade] = useState("");
   const [estado, setEstado] = useState("");
   
-  // Hierarquia
+  // Hierarquia - seleção existente ou criar nova
   const [sedeId, setSedeId] = useState("");
   const [congregacaoId, setCongregacaoId] = useState("");
   
+  // Modo de criação inline (quando não existe sede/congregação)
+  const [criarNovaSede, setCriarNovaSede] = useState(false);
+  const [criarNovaCongregacao, setCriarNovaCongregacao] = useState(false);
+  
+  // Dados para nova sede inline
+  const [novaSedeNome, setNovaSedeNome] = useState("");
+  const [novaSedeConvencao, setNovaSedeConvencao] = useState("");
+  const [novaSedeDirigente, setNovaSedeDirigente] = useState("");
+  
+  // Dados para nova congregação inline
+  const [novaCongregacaoNome, setNovaCongregacaoNome] = useState("");
+  const [novaCongregacaoDirigente, setNovaCongregacaoDirigente] = useState("");
+  
   // Igrejas existentes para seleção
-  const [igrejasExistentes, setIgrejasExistentes] = useState<IgrejaExistente[]>([]);
+  const [sedesExistentes, setSedesExistentes] = useState<IgrejaExistente[]>([]);
   const [congregacoesExistentes, setCongregacoesExistentes] = useState<IgrejaExistente[]>([]);
 
   // Redireciona se já tem igreja
@@ -95,12 +110,15 @@ export default function SetupIgrejaPage() {
         const sedes: IgrejaExistente[] = [];
         const congregacoes: IgrejaExistente[] = [];
         
-        snapshot.docs.forEach(doc => {
-          const data = doc.data();
+        snapshot.docs.forEach(docSnap => {
+          const data = docSnap.data();
           const igreja: IgrejaExistente = {
-            id: doc.id,
+            id: docSnap.id,
             nome: data.nome || "Sem nome",
-            tipo: data.tipo || "sede"
+            tipo: data.tipo || "sede",
+            convencao: data.convencao,
+            sedeId: data.sedeId,
+            igrejaPaiId: data.igrejaPaiId
           };
           
           if (data.tipo === "sede" || !data.tipo) {
@@ -110,7 +128,7 @@ export default function SetupIgrejaPage() {
           }
         });
         
-        setIgrejasExistentes(sedes);
+        setSedesExistentes(sedes);
         setCongregacoesExistentes(congregacoes);
       } catch (err) {
         console.error("Erro ao carregar igrejas:", err);
@@ -126,9 +144,13 @@ export default function SetupIgrejaPage() {
 
   // Filtra congregações pela sede selecionada
   const congregacoesDaSede = congregacoesExistentes.filter(c => {
-    // Precisaria verificar o igrejaPaiId, mas por enquanto mostra todas
-    return true;
+    if (!sedeId) return false;
+    return c.sedeId === sedeId || c.igrejaPaiId === sedeId;
   });
+
+  // Pega a convenção da sede selecionada
+  const sedeSelecionada = sedesExistentes.find(s => s.id === sedeId);
+  const convencaoHerdada = sedeSelecionada?.convencao || "";
 
   const buscarCep = async () => {
     if (cep.length !== 8) return;
@@ -158,20 +180,112 @@ export default function SetupIgrejaPage() {
     return `${value.slice(0, 5)}-${value.slice(5)}`;
   };
 
+  // Cria uma sede inline (quando usuário seleciona "Adicionar nova sede")
+  const criarSedeInline = async (): Promise<string> => {
+    if (!novaSedeNome.trim()) {
+      throw new Error("Nome da sede é obrigatório");
+    }
+    if (!novaSedeConvencao.trim()) {
+      throw new Error("Convenção da sede é obrigatória");
+    }
+
+    const sedeData: Partial<Igreja> = {
+      nome: novaSedeNome.trim(),
+      tipo: "sede",
+      convencao: novaSedeConvencao.trim(),
+      dirigente: novaSedeDirigente.trim() || undefined,
+      dataCadastro: Timestamp.now(),
+      ativa: true,
+    };
+
+    const igrejasRef = collection(db, "igrejas");
+    const novaSedeRef = await addDoc(igrejasRef, sedeData);
+    
+    // Cria unidade padrão para a sede
+    const unidadesRef = collection(db, "igrejas", novaSedeRef.id, "unidades");
+    await addDoc(unidadesRef, {
+      nome: novaSedeNome.trim(),
+      tipo: "sede",
+      dataCriacao: Timestamp.now(),
+      ativa: true,
+    });
+
+    return novaSedeRef.id;
+  };
+
+  // Cria uma congregação inline (quando usuário seleciona "Adicionar nova congregação")
+  const criarCongregacaoInline = async (sedeIdParam: string, convencaoParam: string): Promise<string> => {
+    if (!novaCongregacaoNome.trim()) {
+      throw new Error("Nome da congregação é obrigatório");
+    }
+
+    const congregacaoData: Partial<Igreja> = {
+      nome: novaCongregacaoNome.trim(),
+      tipo: "congregacao",
+      convencao: convencaoParam,
+      sedeId: sedeIdParam,
+      igrejaPaiId: sedeIdParam,
+      dirigente: novaCongregacaoDirigente.trim() || undefined,
+      dataCadastro: Timestamp.now(),
+      ativa: true,
+    };
+
+    const igrejasRef = collection(db, "igrejas");
+    const novaCongregacaoRef = await addDoc(igrejasRef, congregacaoData);
+    
+    // Cria unidade padrão para a congregação
+    const unidadesRef = collection(db, "igrejas", novaCongregacaoRef.id, "unidades");
+    await addDoc(unidadesRef, {
+      nome: novaCongregacaoNome.trim(),
+      tipo: "congregacao",
+      unidadePaiId: sedeIdParam,
+      dataCriacao: Timestamp.now(),
+      ativa: true,
+    });
+
+    return novaCongregacaoRef.id;
+  };
+
   const handleSubmit = async () => {
     if (!nome.trim()) {
       setError("Digite o nome da igreja");
       return;
     }
 
-    if (tipo === "congregacao" && !sedeId) {
-      setError("Selecione a igreja sede");
+    // Validações específicas por tipo
+    if (tipo === "sede" && !convencao.trim()) {
+      setError("Digite a convenção/denominação da sede");
       return;
     }
 
-    if (tipo === "subcongregacao" && (!sedeId || !congregacaoId)) {
-      setError("Selecione a sede e a congregação");
-      return;
+    if (tipo === "congregacao") {
+      if (!sedeId && !criarNovaSede) {
+        setError("Selecione a sede ou crie uma nova");
+        return;
+      }
+      if (criarNovaSede && (!novaSedeNome.trim() || !novaSedeConvencao.trim())) {
+        setError("Preencha os dados da nova sede (nome e convenção)");
+        return;
+      }
+    }
+
+    if (tipo === "subcongregacao") {
+      if (!sedeId && !criarNovaSede) {
+        setError("Selecione a sede ou crie uma nova");
+        return;
+      }
+      if (criarNovaSede && (!novaSedeNome.trim() || !novaSedeConvencao.trim())) {
+        setError("Preencha os dados da nova sede");
+        return;
+      }
+      if (!criarNovaSede && !congregacaoId && !criarNovaCongregacao) {
+        setError("Selecione a congregação ou crie uma nova");
+        return;
+      }
+      if (criarNovaCongregacao && !novaCongregacaoNome.trim()) {
+        setError("Preencha o nome da nova congregação");
+        return;
+      }
     }
 
     setLoading(true);
@@ -181,23 +295,64 @@ export default function SetupIgrejaPage() {
       const currentUser = auth.currentUser;
       if (!currentUser) throw new Error("Usuário não autenticado");
 
-      // Determina o tipo para salvar
-      let tipoFinal: TipoIgreja = "sede";
-      if (tipo === "congregacao") tipoFinal = "congregacao";
-      else if (tipo === "subcongregacao") tipoFinal = "subcongregacao";
-      else if (tipo === "nao_definido") tipoFinal = "outro";
+      let sedeIdFinal = sedeId;
+      let congregacaoIdFinal = congregacaoId;
+      let convencaoFinal = convencao.trim();
+      let igrejaPaiIdFinal: string | undefined;
 
-      // Cria o documento da igreja
+      // Se é SEDE, cria diretamente
+      if (tipo === "sede") {
+        // Convenção já está definida
+      }
+
+      // Se é CONGREGAÇÃO
+      if (tipo === "congregacao") {
+        if (criarNovaSede) {
+          // Cria a sede primeiro
+          sedeIdFinal = await criarSedeInline();
+          convencaoFinal = novaSedeConvencao.trim();
+        } else {
+          // Usa convenção da sede selecionada
+          convencaoFinal = convencaoHerdada;
+        }
+        igrejaPaiIdFinal = sedeIdFinal;
+      }
+
+      // Se é SUBCONGREGAÇÃO
+      if (tipo === "subcongregacao") {
+        if (criarNovaSede) {
+          // Cria a sede primeiro
+          sedeIdFinal = await criarSedeInline();
+          convencaoFinal = novaSedeConvencao.trim();
+          
+          // Agora cria a congregação
+          if (criarNovaCongregacao || !congregacaoId) {
+            congregacaoIdFinal = await criarCongregacaoInline(sedeIdFinal, convencaoFinal);
+          }
+        } else {
+          // Usa convenção da sede selecionada
+          convencaoFinal = convencaoHerdada;
+          
+          if (criarNovaCongregacao) {
+            // Cria a congregação
+            congregacaoIdFinal = await criarCongregacaoInline(sedeIdFinal, convencaoFinal);
+          }
+        }
+        igrejaPaiIdFinal = congregacaoIdFinal;
+      }
+
+      // Cria o documento da igreja principal
       const igrejaData: Partial<Igreja> = {
         nome: nome.trim(),
-        tipo: tipoFinal,
+        tipo: tipo,
         dirigente: dirigente.trim() || undefined,
-        convencao: convencao.trim() || undefined,
+        convencao: convencaoFinal || undefined,
         ministerio: ministerio.trim() || undefined,
         telefone: telefone.trim() || undefined,
         email: email.trim() || undefined,
         cnpj: cnpj.trim() || undefined,
-        igrejaPaiId: tipo === "congregacao" ? sedeId : (tipo === "subcongregacao" ? congregacaoId : undefined),
+        igrejaPaiId: igrejaPaiIdFinal,
+        sedeId: tipo !== "sede" ? sedeIdFinal : undefined,
         endereco: {
           cep: cep || undefined,
           logradouro: logradouro.trim() || undefined,
@@ -216,13 +371,20 @@ export default function SetupIgrejaPage() {
       const novaIgrejaRef = await addDoc(igrejasRef, igrejaData);
       const novaIgrejaId = novaIgrejaRef.id;
 
-      // Cria uma unidade padrão (sede) para a igreja
+      // Determina o tipo da unidade
+      let tipoUnidade: "sede" | "congregacao" | "subcongregacao" = "sede";
+      if (tipo === "congregacao") tipoUnidade = "congregacao";
+      else if (tipo === "subcongregacao") tipoUnidade = "subcongregacao";
+
+      // Cria uma unidade padrão para a igreja
       const unidadesRef = collection(db, "igrejas", novaIgrejaId, "unidades");
       const unidadeData = {
         nome: nome.trim(),
-        tipo: "sede",
+        tipo: tipoUnidade,
+        unidadePaiId: igrejaPaiIdFinal || null,
         endereco: igrejaData.endereco,
         dataCriacao: Timestamp.now(),
+        ativa: true,
       };
       const novaUnidadeRef = await addDoc(unidadesRef, unidadeData);
 
@@ -248,6 +410,48 @@ export default function SetupIgrejaPage() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Reset dos campos inline quando muda seleção
+  useEffect(() => {
+    if (sedeId && sedeId !== "__nova__") {
+      setCriarNovaSede(false);
+      setNovaSedeNome("");
+      setNovaSedeConvencao("");
+      setNovaSedeDirigente("");
+    }
+  }, [sedeId]);
+
+  useEffect(() => {
+    if (congregacaoId && congregacaoId !== "__nova__") {
+      setCriarNovaCongregacao(false);
+      setNovaCongregacaoNome("");
+      setNovaCongregacaoDirigente("");
+    }
+  }, [congregacaoId]);
+
+  // Handler para seleção de sede
+  const handleSedeChange = (value: string) => {
+    if (value === "__nova__") {
+      setCriarNovaSede(true);
+      setSedeId("");
+      setCongregacaoId("");
+    } else {
+      setCriarNovaSede(false);
+      setSedeId(value);
+      setCongregacaoId("");
+    }
+  };
+
+  // Handler para seleção de congregação
+  const handleCongregacaoChange = (value: string) => {
+    if (value === "__nova__") {
+      setCriarNovaCongregacao(true);
+      setCongregacaoId("");
+    } else {
+      setCriarNovaCongregacao(false);
+      setCongregacaoId(value);
     }
   };
 
@@ -288,74 +492,185 @@ export default function SetupIgrejaPage() {
           <FieldGroup>
             <Field>
               <FieldLabel>Tipo da Igreja *</FieldLabel>
-              <Select value={tipo} onValueChange={(v) => setTipo(v as TipoSelecionado)}>
+              <Select value={tipo} onValueChange={(v) => {
+                setTipo(v as TipoSelecionado);
+                setSedeId("");
+                setCongregacaoId("");
+                setCriarNovaSede(false);
+                setCriarNovaCongregacao(false);
+              }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o tipo" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="sede">Igreja Sede</SelectItem>
-                  <SelectItem value="congregacao">Congregação</SelectItem>
-                  <SelectItem value="subcongregacao">Subcongregação</SelectItem>
-                  <SelectItem value="nao_definido">Não definido</SelectItem>
+                  <SelectItem value="congregacao">Congregacao</SelectItem>
+                  <SelectItem value="subcongregacao">Subcongregacao</SelectItem>
                 </SelectContent>
               </Select>
               <FieldDescription>
-                {tipo === "sede" && "Igreja principal, matriz ou sede ministerial"}
-                {tipo === "congregacao" && "Igreja vinculada a uma sede"}
-                {tipo === "subcongregacao" && "Ponto de pregação vinculado a uma congregação"}
-                {tipo === "nao_definido" && "Tipo não especificado"}
+                {tipo === "sede" && "Igreja principal, matriz ou sede ministerial. Voce definira a convencao."}
+                {tipo === "congregacao" && "Igreja vinculada a uma sede. A convencao sera herdada da sede."}
+                {tipo === "subcongregacao" && "Ponto de pregacao vinculado a uma congregacao."}
               </FieldDescription>
             </Field>
+
+            {/* Campo Convenção (apenas para SEDE) */}
+            {tipo === "sede" && (
+              <Field>
+                <FieldLabel>Convencao/Denominacao *</FieldLabel>
+                <Input
+                  placeholder="Ex: Assembleia de Deus, Igreja Batista, etc."
+                  value={convencao}
+                  onChange={(e) => setConvencao(e.target.value)}
+                />
+                <FieldDescription>
+                  Esta convencao sera herdada por todas as congregacoes e subcongregacoes.
+                </FieldDescription>
+              </Field>
+            )}
 
             {/* Seleção de Sede (para congregação e subcongregação) */}
             {(tipo === "congregacao" || tipo === "subcongregacao") && (
               <Field>
                 <FieldLabel>Igreja Sede *</FieldLabel>
-                <Select value={sedeId} onValueChange={setSedeId}>
+                <Select 
+                  value={criarNovaSede ? "__nova__" : sedeId} 
+                  onValueChange={handleSedeChange}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione a sede" />
                   </SelectTrigger>
                   <SelectContent>
-                    {igrejasExistentes.length === 0 ? (
-                      <SelectItem value="" disabled>Nenhuma sede cadastrada</SelectItem>
-                    ) : (
-                      igrejasExistentes.map(igreja => (
-                        <SelectItem key={igreja.id} value={igreja.id}>
-                          {igreja.nome}
-                        </SelectItem>
-                      ))
-                    )}
+                    {sedesExistentes.map(igreja => (
+                      <SelectItem key={igreja.id} value={igreja.id}>
+                        {igreja.nome} {igreja.convencao && `(${igreja.convencao})`}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__nova__">
+                      <span className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        Adicionar nova sede
+                      </span>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
-                {igrejasExistentes.length === 0 && (
-                  <FieldDescription className="text-destructive">
-                    Cadastre primeiro uma igreja sede para depois criar congregações.
+                {sedeId && !criarNovaSede && convencaoHerdada && (
+                  <FieldDescription>
+                    Convencao: {convencaoHerdada}
                   </FieldDescription>
                 )}
               </Field>
             )}
 
+            {/* Campos para criar nova sede inline */}
+            {criarNovaSede && (tipo === "congregacao" || tipo === "subcongregacao") && (
+              <div className="rounded-lg border border-dashed border-primary/50 bg-primary/5 p-4 space-y-4">
+                <p className="text-sm font-medium text-primary">Nova Sede</p>
+                <Field>
+                  <FieldLabel>Nome da Sede *</FieldLabel>
+                  <Input
+                    placeholder="Ex: Igreja Sede Central"
+                    value={novaSedeNome}
+                    onChange={(e) => setNovaSedeNome(e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>Convencao da Sede *</FieldLabel>
+                  <Input
+                    placeholder="Ex: Assembleia de Deus"
+                    value={novaSedeConvencao}
+                    onChange={(e) => setNovaSedeConvencao(e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>Dirigente da Sede</FieldLabel>
+                  <Input
+                    placeholder="Nome do pastor da sede"
+                    value={novaSedeDirigente}
+                    onChange={(e) => setNovaSedeDirigente(e.target.value)}
+                  />
+                </Field>
+              </div>
+            )}
+
             {/* Seleção de Congregação (para subcongregação) */}
-            {tipo === "subcongregacao" && (
+            {tipo === "subcongregacao" && (sedeId || criarNovaSede) && !criarNovaSede && (
               <Field>
-                <FieldLabel>Congregação *</FieldLabel>
-                <Select value={congregacaoId} onValueChange={setCongregacaoId}>
+                <FieldLabel>Congregacao *</FieldLabel>
+                <Select 
+                  value={criarNovaCongregacao ? "__nova__" : congregacaoId} 
+                  onValueChange={handleCongregacaoChange}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione a congregação" />
+                    <SelectValue placeholder="Selecione a congregacao" />
                   </SelectTrigger>
                   <SelectContent>
-                    {congregacoesDaSede.length === 0 ? (
-                      <SelectItem value="" disabled>Nenhuma congregação cadastrada</SelectItem>
-                    ) : (
-                      congregacoesDaSede.map(igreja => (
-                        <SelectItem key={igreja.id} value={igreja.id}>
-                          {igreja.nome}
-                        </SelectItem>
-                      ))
+                    {congregacoesDaSede.length === 0 && (
+                      <SelectItem value="" disabled>
+                        Nenhuma congregacao desta sede
+                      </SelectItem>
                     )}
+                    {congregacoesDaSede.map(igreja => (
+                      <SelectItem key={igreja.id} value={igreja.id}>
+                        {igreja.nome}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__nova__">
+                      <span className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        Adicionar nova congregacao
+                      </span>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
+            )}
+
+            {/* Se criou nova sede para subcongregação, precisa criar congregação também */}
+            {tipo === "subcongregacao" && criarNovaSede && (
+              <div className="rounded-lg border border-dashed border-amber-500/50 bg-amber-500/5 p-4 space-y-4">
+                <p className="text-sm font-medium text-amber-700">Nova Congregacao (vinculada a sede acima)</p>
+                <Field>
+                  <FieldLabel>Nome da Congregacao *</FieldLabel>
+                  <Input
+                    placeholder="Ex: Congregacao Vila Nova"
+                    value={novaCongregacaoNome}
+                    onChange={(e) => setNovaCongregacaoNome(e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>Dirigente da Congregacao</FieldLabel>
+                  <Input
+                    placeholder="Nome do dirigente"
+                    value={novaCongregacaoDirigente}
+                    onChange={(e) => setNovaCongregacaoDirigente(e.target.value)}
+                  />
+                </Field>
+              </div>
+            )}
+
+            {/* Campos para criar nova congregação inline (quando não está criando sede nova) */}
+            {tipo === "subcongregacao" && criarNovaCongregacao && !criarNovaSede && (
+              <div className="rounded-lg border border-dashed border-amber-500/50 bg-amber-500/5 p-4 space-y-4">
+                <p className="text-sm font-medium text-amber-700">Nova Congregacao</p>
+                <Field>
+                  <FieldLabel>Nome da Congregacao *</FieldLabel>
+                  <Input
+                    placeholder="Ex: Congregacao Vila Nova"
+                    value={novaCongregacaoNome}
+                    onChange={(e) => setNovaCongregacaoNome(e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>Dirigente da Congregacao</FieldLabel>
+                  <Input
+                    placeholder="Nome do dirigente"
+                    value={novaCongregacaoDirigente}
+                    onChange={(e) => setNovaCongregacaoDirigente(e.target.value)}
+                  />
+                </Field>
+              </div>
             )}
           </FieldGroup>
 
@@ -364,7 +679,7 @@ export default function SetupIgrejaPage() {
             <Field>
               <FieldLabel>Nome da Igreja *</FieldLabel>
               <Input
-                placeholder="Ex: Igreja Missão Restaurar"
+                placeholder="Ex: Igreja Missao Restaurar"
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
               />
@@ -380,23 +695,14 @@ export default function SetupIgrejaPage() {
                 />
               </Field>
               <Field>
-                <FieldLabel>Convenção/Denominação</FieldLabel>
+                <FieldLabel>Ministerio</FieldLabel>
                 <Input
-                  placeholder="Ex: Assembleia de Deus"
-                  value={convencao}
-                  onChange={(e) => setConvencao(e.target.value)}
+                  placeholder="Ex: Ministerio Missao"
+                  value={ministerio}
+                  onChange={(e) => setMinisterio(e.target.value)}
                 />
               </Field>
             </div>
-
-            <Field>
-              <FieldLabel>Ministério</FieldLabel>
-              <Input
-                placeholder="Ex: Ministério Missão"
-                value={ministerio}
-                onChange={(e) => setMinisterio(e.target.value)}
-              />
-            </Field>
           </FieldGroup>
 
           {/* Contato */}
@@ -434,7 +740,7 @@ export default function SetupIgrejaPage() {
           <FieldGroup>
             <div className="flex items-center gap-2 mb-2">
               <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Endereço</span>
+              <span className="text-sm font-medium">Endereco</span>
             </div>
             
             <div className="grid gap-4 sm:grid-cols-3">
@@ -465,7 +771,7 @@ export default function SetupIgrejaPage() {
 
             <div className="grid gap-4 sm:grid-cols-3">
               <Field>
-                <FieldLabel>Número</FieldLabel>
+                <FieldLabel>Numero</FieldLabel>
                 <Input
                   placeholder="123"
                   value={numero}
