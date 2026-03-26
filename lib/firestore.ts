@@ -20,9 +20,10 @@ export function getIgrejaCollection(igrejaId: string, collectionName: string) {
   if (!db) throw new Error("Firebase não configurado");
   if (!igrejaId) throw new Error("igrejaId é obrigatório");
 
-  // Mapeia o nome da coleção se necessário
-  const firestoreCollectionName = COLLECTION_MAP[collectionName] || collectionName;
+  const firestoreCollectionName =
+    COLLECTION_MAP[collectionName] || collectionName;
 
+  // 🔥 NOVA ESTRUTURA (CORRETA)
   return collection(db, "igrejas", igrejaId, firestoreCollectionName);
 }
 
