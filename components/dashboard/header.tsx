@@ -20,6 +20,7 @@ import { TIPOS_UNIDADE } from "@/lib/types";
 const pathNames: Record<string, string> = {
   dashboard: "Dashboard",
   membros: "Membros",
+  visitantes: "Visitantes",
   novo: "Novo Cadastro",
   nova: "Nova",
   mapa: "Mapa",
@@ -33,6 +34,7 @@ const pathNames: Record<string, string> = {
   relatorios: "Relatórios",
   editar: "Editar",
   usuarios: "Usuários",
+  converter: "Converter para Membro",
 };
 
 export function Header() {
