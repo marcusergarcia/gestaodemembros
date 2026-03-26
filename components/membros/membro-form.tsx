@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -80,14 +80,25 @@ interface MembroFormProps {
 export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
   const router = useRouter();
   const { user, igrejaId, unidadeId, unidadesAcessiveis, todasUnidades, temAcessoTotal } = useAuth();
-  const [selectedUnidadeId, setSelectedUnidadeId] = useState<string>(
-    unidadeIdParam || membro?.unidadeId || unidadeId || ""
-  );
-  
   // Unidades disponíveis para seleção
   const unidadesDisponiveis = todasUnidades.filter(u => 
     unidadesAcessiveis.includes(u.id)
   );
+  
+  // Se só há 1 unidade, usa ela automaticamente
+  const defaultUnidadeId = unidadeIdParam || membro?.unidadeId || unidadeId || 
+    (unidadesDisponiveis.length === 1 ? unidadesDisponiveis[0]?.id : "") || "";
+  
+  const [selectedUnidadeId, setSelectedUnidadeId] = useState<string>(defaultUnidadeId);
+  
+  // Atualiza selectedUnidadeId quando unidades disponíveis carregarem
+  useEffect(() => {
+    console.log("[v0] MembroForm - todasUnidades:", todasUnidades.length, "unidadesAcessiveis:", unidadesAcessiveis.length, "unidadesDisponiveis:", unidadesDisponiveis.length, "selectedUnidadeId:", selectedUnidadeId);
+    if (!selectedUnidadeId && unidadesDisponiveis.length >= 1) {
+      console.log("[v0] MembroForm - Auto-selecionando unidade:", unidadesDisponiveis[0].id, unidadesDisponiveis[0].nome);
+      setSelectedUnidadeId(unidadesDisponiveis[0].id);
+    }
+  }, [unidadesDisponiveis, selectedUnidadeId, todasUnidades.length, unidadesAcessiveis.length]);
   const [loading, setLoading] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
   const [loadingGeo, setLoadingGeo] = useState(false);
@@ -375,33 +386,57 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
         </Card>
 
         {/* Unidade */}
-        {unidadesDisponiveis.length > 1 && !membro && (
+        {!membro && (
           <Card>
             <CardHeader>
               <CardTitle>Unidade</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Selecione a Unidade *</label>
-                <Select
-                  value={selectedUnidadeId}
-                  onValueChange={setSelectedUnidadeId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a unidade" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {unidadesDisponiveis.map((unidade) => (
-                      <SelectItem key={unidade.id} value={unidade.id}>
-                        {unidade.nome} ({TIPOS_UNIDADE[unidade.tipo]})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  O membro será cadastrado nesta unidade
-                </p>
-              </div>
+              {unidadesDisponiveis.length === 0 ? (
+                <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+                  <p className="text-sm font-medium text-destructive">
+                    Nenhuma unidade disponível
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Não foi possível carregar as unidades. Verifique se existe pelo menos uma unidade cadastrada 
+                    e se seu usuário tem permissão para acessá-la.
+                  </p>
+                </div>
+              ) : unidadesDisponiveis.length === 1 ? (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Unidade</label>
+                  <div className="rounded-md border bg-muted/50 px-3 py-2">
+                    <p className="text-sm">
+                      {unidadesDisponiveis[0].nome} ({TIPOS_UNIDADE[unidadesDisponiveis[0].tipo]})
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    O membro será cadastrado nesta unidade
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Selecione a Unidade *</label>
+                  <Select
+                    value={selectedUnidadeId}
+                    onValueChange={setSelectedUnidadeId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a unidade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {unidadesDisponiveis.map((unidade) => (
+                        <SelectItem key={unidade.id} value={unidade.id}>
+                          {unidade.nome} ({TIPOS_UNIDADE[unidade.tipo]})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    O membro será cadastrado nesta unidade
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
