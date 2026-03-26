@@ -195,7 +195,6 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
     ].filter(Boolean);
     
     const endereco = partesEndereco.join(", ");
-    console.log("[v0] Geocodando endereço:", endereco);
 
     setLoadingGeo(true);
     try {
@@ -206,17 +205,14 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
       });
 
       const data = await response.json();
-      console.log("[v0] Resposta geocode:", data);
 
       if (response.ok) {
         setCoordenadas({ lat: data.lat, lng: data.lng });
         toast.success(`Localização encontrada: ${data.formatted_address || endereco}`);
       } else {
-        console.error("[v0] Erro geocode:", data.error);
         toast.error(data.error || "Não foi possível localizar o endereço");
       }
-    } catch (error) {
-      console.error("[v0] Erro ao buscar localização:", error);
+    } catch {
       toast.error("Erro ao buscar localização. Verifique sua conexão.");
     } finally {
       setLoadingGeo(false);
@@ -224,11 +220,9 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
   };
 
   const onSubmit = async (data: MembroFormData) => {
-    if (!coordenadas) {
-      toast.error("Por favor, clique em 'Localizar no Mapa' antes de salvar");
-      return;
-    }
-
+    // Coordenadas são opcionais - o membro pode ser cadastrado sem geolocalização
+    // A localização no mapa pode ser feita posteriormente se necessário
+    
     if (!user || !igrejaId || !selectedUnidadeId) {
       toast.error("Você precisa estar logado e selecionar uma unidade");
       return;
@@ -254,10 +248,15 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
           estado: data.estado,
           cep: data.cep.replace(/\D/g, ""),
         },
-        coordenadas,
+        coordenadas: coordenadas || null,
         observacoes: data.observacoes || null,
         ativo: true,
       };
+      
+      // Aviso se não tiver coordenadas
+      if (!coordenadas) {
+        toast.info("Membro será salvo sem localização no mapa. Você pode adicionar depois.");
+      }
 
       if (membro && unidadeIdParam) {
         // Update existing member
