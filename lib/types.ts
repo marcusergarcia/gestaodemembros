@@ -59,9 +59,10 @@ export interface Igreja {
   nome: string;
   tipo: TipoIgreja;
   codIgreja?: string;
-  convencao?: string;
+  convencao?: string; // Convenção/Denominação (herdada da sede para filhas)
   ministerio?: string;
   igrejaPaiId?: string; // ID da igreja pai (para congregações/subcongregações)
+  sedeId?: string; // ID da sede raiz (para congregações e subcongregações)
   endereco?: Endereco;
   coordenadas?: Coordenadas;
   dirigente?: string;
