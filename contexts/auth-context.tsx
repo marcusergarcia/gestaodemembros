@@ -51,7 +51,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Carrega as unidades acessíveis quando o usuário é carregado
   useEffect(() => {
     async function carregarUnidades() {
-      if (!usuario || !igrejaId || !usuario.unidadeId) {
+      console.log("[v0] carregarUnidades - usuario:", usuario?.uid, "igrejaId:", igrejaId, "unidadeId:", usuario?.unidadeId, "nivelAcesso:", usuario?.nivelAcesso);
+      
+      if (!usuario || !igrejaId) {
+        console.log("[v0] Sem usuario ou igrejaId, retornando");
         setUnidadesAcessiveis([]);
         setTodasUnidades([]);
         setUnidadeAtual(null);
@@ -61,10 +64,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         // Carrega todas as unidades da igreja
         const unidades = await carregarTodasUnidades(igrejaId);
+        console.log("[v0] Unidades carregadas:", unidades.length, unidades.map(u => ({ id: u.id, nome: u.nome, tipo: u.tipo })));
         setTodasUnidades(unidades);
+
+        // Se o usuário é "full" ou não tem unidadeId, dá acesso a todas
+        if (usuario.nivelAcesso === "full" || !usuario.unidadeId) {
+          console.log("[v0] Acesso total ou sem unidadeId - dando acesso a todas as unidades");
+          const todasIds = unidades.map(u => u.id);
+          setUnidadesAcessiveis(todasIds);
+          setUnidadeAtual(unidades[0] || null);
+          return;
+        }
 
         // Encontra a unidade atual do usuário
         const unidade = unidades.find(u => u.id === usuario.unidadeId);
+        console.log("[v0] Unidade atual:", unidade?.nome);
         setUnidadeAtual(unidade || null);
 
         // Carrega as unidades acessíveis baseado no nível de acesso
@@ -73,10 +87,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           usuario.unidadeId,
           usuario.nivelAcesso
         );
+        console.log("[v0] Unidades acessíveis:", acessiveis);
         setUnidadesAcessiveis(acessiveis);
       } catch (error) {
-        console.error("Erro ao carregar unidades:", error);
-        setUnidadesAcessiveis([usuario.unidadeId]);
+        console.error("[v0] Erro ao carregar unidades:", error);
+        // Em caso de erro, tenta dar acesso à unidade do usuário
+        if (usuario.unidadeId) {
+          setUnidadesAcessiveis([usuario.unidadeId]);
+        }
       }
     }
 
@@ -103,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (docSnapOld.exists()) {
           const userData = { uid: docSnapOld.id, ...docSnapOld.data() } as Usuario;
+          console.log("[v0] Usuario carregado:", userData);
           setUsuario(userData);
           setIgrejaId(userData.igrejaId || null);
           setUnidadeId(userData.unidadeId || null);

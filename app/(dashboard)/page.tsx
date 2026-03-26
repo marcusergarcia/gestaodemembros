@@ -49,12 +49,16 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log("[v0] Dashboard - igrejaId:", igrejaId, "unidadesAcessiveis:", unidadesAcessiveis);
+    
     if (!igrejaId || unidadesAcessiveis.length === 0) {
+      console.log("[v0] Dashboard - Sem igrejaId ou unidades, parando");
       setLoading(false);
       return;
     }
 
     async function loadStats() {
+      console.log("[v0] Dashboard - Carregando stats para", unidadesAcessiveis.length, "unidades");
       try {
         const porTipo: Record<TipoMembro, number> = {
           visitante: 0,
