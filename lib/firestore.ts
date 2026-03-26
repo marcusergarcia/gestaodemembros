@@ -19,11 +19,12 @@ const COLLECTION_MAP: Record<string, string> = {
 export function getIgrejaCollection(igrejaId: string, collectionName: string) {
   if (!db) throw new Error("Firebase não configurado");
   if (!igrejaId) throw new Error("igrejaId é obrigatório");
-  
-  // Mapeia o nome da coleção se necessário
-  const firestoreCollectionName = COLLECTION_MAP[collectionName] || collectionName;
-  
-  return collection(db, firestoreCollectionName);
+
+  const firestoreCollectionName =
+    COLLECTION_MAP[collectionName] || collectionName;
+
+  // 🔥 NOVA ESTRUTURA (CORRETA)
+  return collection(db, "igrejas", igrejaId, firestoreCollectionName);
 }
 
 /**
@@ -33,10 +34,10 @@ export function getIgrejaCollection(igrejaId: string, collectionName: string) {
 export function getIgrejaDoc(igrejaId: string, collectionName: string, docId: string) {
   if (!db) throw new Error("Firebase não configurado");
   if (!igrejaId) throw new Error("igrejaId é obrigatório");
-  
+
   // Mapeia o nome da coleção se necessário
   const firestoreCollectionName = COLLECTION_MAP[collectionName] || collectionName;
-  
+
   return doc(db, firestoreCollectionName, docId);
 }
 
@@ -58,5 +59,4 @@ export const COLLECTIONS = {
   USUARIOS: "usuarios", // Usuários ficam na raiz, com igrejaId no documento
 } as const;
 
-// Campo usado para filtrar por igreja nos documentos
-export const IGREJA_ID_FIELD = "igrejaID";
+
