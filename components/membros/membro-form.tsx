@@ -79,7 +79,7 @@ interface MembroFormProps {
 
 export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
   const router = useRouter();
-  const { user, igrejaId, unidadeId, unidadesAcessiveis, todasUnidades, temAcessoTotal } = useAuth();
+  const { user, igrejaId, unidadeId, unidadesAcessiveis, todasUnidades, temAcessoTotal, loading: authLoading } = useAuth();
   // Unidades disponíveis para seleção
   const unidadesDisponiveis = todasUnidades.filter(u => 
     unidadesAcessiveis.includes(u.id)
@@ -392,14 +392,35 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
               <CardTitle>Unidade</CardTitle>
             </CardHeader>
             <CardContent>
-              {unidadesDisponiveis.length === 0 ? (
+              {authLoading ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <span className="text-sm">Carregando unidades...</span>
+                </div>
+              ) : !igrejaId ? (
+                <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+                  <p className="text-sm font-medium text-destructive">
+                    Igreja não configurada
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Seu usuário não está vinculado a nenhuma igreja. Entre em contato com o administrador.
+                  </p>
+                </div>
+              ) : unidadesDisponiveis.length === 0 ? (
                 <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
                   <p className="text-sm font-medium text-destructive">
                     Nenhuma unidade disponível
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Não foi possível carregar as unidades. Verifique se existe pelo menos uma unidade cadastrada 
-                    e se seu usuário tem permissão para acessá-la.
+                    {todasUnidades.length === 0 
+                      ? "Não há unidades cadastradas na igreja. Cadastre uma unidade primeiro."
+                      : unidadesAcessiveis.length === 0 
+                        ? "Seu usuário não tem acesso a nenhuma unidade. Verifique suas permissões."
+                        : "Não foi possível carregar as unidades. Verifique se existe pelo menos uma unidade cadastrada e se seu usuário tem permissão para acessá-la."
+                    }
+                  </p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Debug: todasUnidades={todasUnidades.length}, unidadesAcessiveis={unidadesAcessiveis.length}, igrejaId={igrejaId || "null"}
                   </p>
                 </div>
               ) : unidadesDisponiveis.length === 1 ? (

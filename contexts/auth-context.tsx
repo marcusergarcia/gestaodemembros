@@ -63,8 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         // Carrega todas as unidades da igreja
+        console.log("[v0] Tentando carregar unidades para igrejaId:", igrejaId);
         const unidades = await carregarTodasUnidades(igrejaId);
-        console.log("[v0] Unidades carregadas:", unidades.length, unidades.map(u => ({ id: u.id, nome: u.nome, tipo: u.tipo })));
+        console.log("[v0] Unidades carregadas:", unidades.length, JSON.stringify(unidades, null, 2));
         setTodasUnidades(unidades);
 
         // Se o usuário é "full" ou não tem unidadeId, dá acesso a todas
@@ -121,7 +122,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (docSnapOld.exists()) {
           const userData = { uid: docSnapOld.id, ...docSnapOld.data() } as Usuario;
-          console.log("[v0] Usuario carregado:", userData);
+          console.log("[v0] Usuario carregado:", JSON.stringify(userData, null, 2));
+          console.log("[v0] Usuario igrejaId:", userData.igrejaId, "unidadeId:", userData.unidadeId, "nivelAcesso:", userData.nivelAcesso);
           setUsuario(userData);
           setIgrejaId(userData.igrejaId || null);
           setUnidadeId(userData.unidadeId || null);
@@ -142,8 +144,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return () => unsubscribeUser();
         }
         
-        // Se não encontrou na raiz, busca dentro da igreja
-        // (isso requer saber o igrejaId, que pode vir de um claim ou de outra fonte)
+        // Se não encontrou na raiz, usuário não configurado corretamente
+        console.log("[v0] Usuario não encontrado em /usuarios/" + firebaseUser.uid);
+        console.log("[v0] O usuário precisa ter um documento em /usuarios/{uid} com igrejaId configurado");
         setUsuario(null);
         setIgrejaId(null);
         setUnidadeId(null);
