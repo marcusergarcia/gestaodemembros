@@ -21,12 +21,13 @@ export default function DashboardLayout({
     if (!loading && isConfigured) {
       if (!user) {
         router.push("/login");
-      } else if (usuario && !igrejaId) {
-        // Usuário logado mas sem igreja - redireciona para setup
+      } else if (!igrejaId) {
+        // Usuário logado mas sem igreja configurada (ou sem documento de usuario)
+        // Redireciona para setup da igreja
         router.push("/setup-igreja");
       }
     }
-  }, [user, usuario, igrejaId, loading, isConfigured, router]);
+  }, [user, igrejaId, loading, isConfigured, router]);
 
   // Show setup page if Firebase is not configured
   if (!isConfigured) {
@@ -51,7 +52,7 @@ export default function DashboardLayout({
   }
 
   // Se usuário logado mas sem igreja, mostra loading enquanto redireciona
-  if (usuario && !igrejaId) {
+  if (user && !igrejaId) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-4">
