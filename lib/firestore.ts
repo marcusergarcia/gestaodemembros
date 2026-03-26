@@ -19,11 +19,11 @@ const COLLECTION_MAP: Record<string, string> = {
 export function getIgrejaCollection(igrejaId: string, collectionName: string) {
   if (!db) throw new Error("Firebase não configurado");
   if (!igrejaId) throw new Error("igrejaId é obrigatório");
-  
+
   // Mapeia o nome da coleção se necessário
   const firestoreCollectionName = COLLECTION_MAP[collectionName] || collectionName;
-  
-  return collection(db, firestoreCollectionName);
+
+  return collection(db, "igrejas", igrejaId, firestoreCollectionName);
 }
 
 /**
@@ -33,10 +33,10 @@ export function getIgrejaCollection(igrejaId: string, collectionName: string) {
 export function getIgrejaDoc(igrejaId: string, collectionName: string, docId: string) {
   if (!db) throw new Error("Firebase não configurado");
   if (!igrejaId) throw new Error("igrejaId é obrigatório");
-  
+
   // Mapeia o nome da coleção se necessário
   const firestoreCollectionName = COLLECTION_MAP[collectionName] || collectionName;
-  
+
   return doc(db, firestoreCollectionName, docId);
 }
 
