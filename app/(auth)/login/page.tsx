@@ -241,16 +241,22 @@ export default function LoginPage() {
 
       // IMPORTANTE: Definir igrejaId para multi-tenant funcionar
       // Por padrão, novos usuários são associados à igreja principal
-      const DEFAULT_IGREJA_ID = "igreja-missao-restaurar";
+      // Este ID deve corresponder ao documento em /igrejas/{igrejaId} no Firestore
+      const DEFAULT_IGREJA_ID = "Mx701cK52vSIF5q0PdTR";
+      
+      // Busca a primeira unidade da igreja para associar ao usuário
+      const { collection, getDocs } = await import("firebase/firestore");
+      const unidadesRef = collection(db, "igrejas", DEFAULT_IGREJA_ID, "unidades");
+      const unidadesSnap = await getDocs(unidadesRef);
+      const primeiraUnidadeId = unidadesSnap.docs.length > 0 ? unidadesSnap.docs[0].id : "";
 
-      // NOTA: unidadeId precisa ser configurado manualmente no Firestore
-      // pelo administrador após o cadastro inicial
+      // NOTA: unidadeId é preenchido automaticamente com a primeira unidade
       await setDoc(usersRef, {
         telefone: currentUser.phoneNumber,
         nome: name.trim(),
-        nivelAcesso: "user", // Default to user, admin/full must be set manually in Firestore
+        nivelAcesso: "admin", // Primeiro usuário pode ser admin, ajustar conforme necessário
         igrejaId: DEFAULT_IGREJA_ID, // Associa o usuário à igreja
-        unidadeId: "", // Será configurado pelo admin
+        unidadeId: primeiraUnidadeId, // Associa à primeira unidade encontrada
         ativo: true,
         dataCriacao: Timestamp.now(),
       });
