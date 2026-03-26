@@ -59,5 +59,4 @@ export const COLLECTIONS = {
   USUARIOS: "usuarios", // Usuários ficam na raiz, com igrejaId no documento
 } as const;
 
-// Campo usado para filtrar por igreja nos documentos
-export const IGREJA_ID_FIELD = "igrejaID";
+
