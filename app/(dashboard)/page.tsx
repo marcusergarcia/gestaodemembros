@@ -1,5 +1,6 @@
 "use client";
 
+// Dashboard principal - v2
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { query, where, getDocs, collectionGroup } from "firebase/firestore";
