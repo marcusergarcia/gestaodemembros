@@ -17,9 +17,17 @@ const pathNames: Record<string, string> = {
   dashboard: "Dashboard",
   membros: "Membros",
   novo: "Novo Cadastro",
+  nova: "Nova",
   mapa: "Mapa",
   grupos: "Grupos",
   configuracoes: "Configurações",
+  igrejas: "Igrejas",
+  igreja: "Dados da Igreja",
+  unidades: "Unidades",
+  aniversariantes: "Aniversariantes",
+  acompanhamento: "Acompanhamento",
+  relatorios: "Relatórios",
+  editar: "Editar",
 };
 
 export function Header() {
