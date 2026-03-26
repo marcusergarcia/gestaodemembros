@@ -618,11 +618,11 @@ export default function SetupIgrejaPage() {
                       <Button 
                         type="button" 
                         variant="outline" 
-                        className="mt-2 w-full"
+                        className="mt-2 w-full border-dashed"
                         onClick={() => setMostrarFormSede(true)}
                       >
                         <Plus className="mr-2 h-4 w-4" />
-                        Adicionar Nova Sede
+                        {igrejasExistentes.length === 0 ? "Criar Primeira Sede" : "Adicionar Nova Sede"}
                       </Button>
                     )}
                     
@@ -731,11 +731,11 @@ export default function SetupIgrejaPage() {
                       <Button 
                         type="button" 
                         variant="outline" 
-                        className="mt-2 w-full"
+                        className="mt-2 w-full border-dashed"
                         onClick={() => setMostrarFormCongregacao(true)}
                       >
                         <Plus className="mr-2 h-4 w-4" />
-                        Adicionar Nova Congregação
+                        {congregacoesDaIgreja.length === 0 ? "Criar Primeira Congregação" : "Adicionar Nova Congregação"}
                       </Button>
                     )}
                     
