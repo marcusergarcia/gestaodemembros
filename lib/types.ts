@@ -10,6 +10,39 @@ export type CargoMembro =
   | "auxiliar_escala"
   | "outro";
 
+// Departamentos/Ministérios da igreja
+export type Departamento =
+  | "louvor"
+  | "infantil"
+  | "jovens"
+  | "mulheres"
+  | "homens"
+  | "casais"
+  | "missoes"
+  | "ensino"
+  | "diaconia"
+  | "recepcao"
+  | "midia"
+  | "intercessao"
+  | "evangelismo"
+  | "outro";
+
+// Funções que o membro pode exercer
+export type FuncaoIgreja =
+  | "musico"
+  | "cantor"
+  | "sonoplasta"
+  | "projetista"
+  | "recepcionista"
+  | "porteiro"
+  | "tesoureiro"
+  | "secretario"
+  | "professor_ebd"
+  | "lider_celula"
+  | "lider_departamento"
+  | "coordenador"
+  | "outro";
+
 // Níveis de acesso hierárquicos
 // - full: acesso total ao sistema (todas as unidades)
 // - admin: acesso à sua unidade + unidades filhas
@@ -128,6 +161,14 @@ export interface Membro {
   tipo: TipoMembro;
   cargo?: CargoMembro;
   cargoDescricao?: string;
+  // Campos para funções e departamentos
+  temFuncaoIgreja?: boolean;
+  funcoes?: FuncaoIgreja[];
+  funcaoDescricao?: string;
+  departamentos?: Departamento[];
+  departamentoDescricao?: string;
+  ehLider?: boolean;
+  liderDe?: string; // Descrição do que lidera
   grupoId?: string; // Grupo ao qual o membro pertence
   unidadeId: string; // ID da unidade do membro
   dataCadastro: Timestamp;
@@ -171,6 +212,39 @@ export const CARGOS_MEMBRO: Record<CargoMembro, string> = {
   diacono: "Diácono(iza)",
   auxiliar_escala: "Auxiliar de Escala",
   outro: "Outro",
+};
+
+export const DEPARTAMENTOS: Record<Departamento, string> = {
+  louvor: "Louvor/Música",
+  infantil: "Infantil",
+  jovens: "Jovens",
+  mulheres: "Mulheres",
+  homens: "Homens",
+  casais: "Casais",
+  missoes: "Missões",
+  ensino: "Ensino/EBD",
+  diaconia: "Diaconia/Assistência Social",
+  recepcao: "Recepção",
+  midia: "Mídia/Comunicação",
+  intercessao: "Intercessão",
+  evangelismo: "Evangelismo",
+  outro: "Outro",
+};
+
+export const FUNCOES_IGREJA: Record<FuncaoIgreja, string> = {
+  musico: "Músico/Instrumentista",
+  cantor: "Cantor(a)",
+  sonoplasta: "Sonoplasta",
+  projetista: "Projetista/Mídia",
+  recepcionista: "Recepcionista",
+  porteiro: "Porteiro",
+  tesoureiro: "Tesoureiro",
+  secretario: "Secretário(a)",
+  professor_ebd: "Professor(a) EBD",
+  lider_celula: "Líder de Célula/Grupo",
+  lider_departamento: "Líder de Departamento",
+  coordenador: "Coordenador(a)",
+  outro: "Outra Função",
 };
 
 export const NIVEIS_ACESSO: Record<NivelAcesso, string> = {

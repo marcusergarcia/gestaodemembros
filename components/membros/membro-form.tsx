@@ -44,10 +44,16 @@ import {
   Membro,
   TipoMembro,
   CargoMembro,
+  Departamento,
+  FuncaoIgreja,
   TIPOS_MEMBRO,
   CARGOS_MEMBRO,
+  DEPARTAMENTOS,
+  FUNCOES_IGREJA,
   TIPOS_UNIDADE,
 } from "@/lib/types";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { FotoUpload } from "./foto-upload";
 
 const membroSchema = z.object({
@@ -60,6 +66,15 @@ const membroSchema = z.object({
     .enum(["pastor", "evangelista", "presbitero", "diacono", "auxiliar_escala", "outro"])
     .optional(),
   cargoDescricao: z.string().optional(),
+  // Campos para funções e departamentos
+  temFuncaoIgreja: z.boolean().optional(),
+  funcoes: z.array(z.enum(["musico", "cantor", "sonoplasta", "projetista", "recepcionista", "porteiro", "tesoureiro", "secretario", "professor_ebd", "lider_celula", "lider_departamento", "coordenador", "outro"])).optional(),
+  funcaoDescricao: z.string().optional(),
+  departamentos: z.array(z.enum(["louvor", "infantil", "jovens", "mulheres", "homens", "casais", "missoes", "ensino", "diaconia", "recepcao", "midia", "intercessao", "evangelismo", "outro"])).optional(),
+  departamentoDescricao: z.string().optional(),
+  ehLider: z.boolean().optional(),
+  liderDe: z.string().optional(),
+  // Endereço
   cep: z.string().min(8, "CEP inválido"),
   logradouro: z.string().min(3, "Logradouro inválido"),
   numero: z.string().min(1, "Número é obrigatório"),
@@ -115,6 +130,13 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
       tipo: membro?.tipo || "visitante",
       cargo: membro?.cargo,
       cargoDescricao: membro?.cargoDescricao || "",
+      temFuncaoIgreja: membro?.temFuncaoIgreja || false,
+      funcoes: membro?.funcoes || [],
+      funcaoDescricao: membro?.funcaoDescricao || "",
+      departamentos: membro?.departamentos || [],
+      departamentoDescricao: membro?.departamentoDescricao || "",
+      ehLider: membro?.ehLider || false,
+      liderDe: membro?.liderDe || "",
       cep: membro?.endereco?.cep || "",
       logradouro: membro?.endereco?.logradouro || "",
       numero: membro?.endereco?.numero || "",
@@ -129,6 +151,10 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
   const watchTipo = form.watch("tipo");
   const showCargo = ["obreiro", "lider"].includes(watchTipo);
   const watchCargo = form.watch("cargo");
+  const watchTemFuncao = form.watch("temFuncaoIgreja");
+  const watchEhLider = form.watch("ehLider");
+  const watchFuncoes = form.watch("funcoes") || [];
+  const watchDepartamentos = form.watch("departamentos") || [];
 
   // Format phone for display
   const formatPhone = (value: string) => {
@@ -239,6 +265,14 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
         tipo: data.tipo as TipoMembro,
         cargo: showCargo ? (data.cargo as CargoMembro) : null,
         cargoDescricao: data.cargo === "outro" ? data.cargoDescricao : null,
+        // Funções e departamentos
+        temFuncaoIgreja: data.temFuncaoIgreja || false,
+        funcoes: data.temFuncaoIgreja ? (data.funcoes as FuncaoIgreja[]) : null,
+        funcaoDescricao: data.funcoes?.includes("outro") ? data.funcaoDescricao : null,
+        departamentos: data.temFuncaoIgreja ? (data.departamentos as Departamento[]) : null,
+        departamentoDescricao: data.departamentos?.includes("outro") ? data.departamentoDescricao : null,
+        ehLider: data.ehLider || false,
+        liderDe: data.ehLider ? data.liderDe : null,
         endereco: {
           logradouro: data.logradouro,
           numero: data.numero,
@@ -558,6 +592,165 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
           </CardContent>
         </Card>
 
+        {/* Funções e Departamentos */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Funções e Departamentos</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Tem função na igreja? */}
+            <FormField
+              control={form.control}
+              name="temFuncaoIgreja"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel className="cursor-pointer">
+                      Exerce alguma função na igreja?
+                    </FormLabel>
+                    <p className="text-xs text-muted-foreground">
+                      Marque se o membro atua em algum ministério ou departamento
+                    </p>
+                  </div>
+                </FormItem>
+              )}
+            />
+
+            {watchTemFuncao && (
+              <>
+                {/* Funções */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">Funções que exerce</Label>
+                  <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                    {(Object.keys(FUNCOES_IGREJA) as FuncaoIgreja[]).map((funcao) => (
+                      <div key={funcao} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`funcao-${funcao}`}
+                          checked={watchFuncoes.includes(funcao)}
+                          onCheckedChange={(checked) => {
+                            const current = form.getValues("funcoes") || [];
+                            if (checked) {
+                              form.setValue("funcoes", [...current, funcao]);
+                            } else {
+                              form.setValue("funcoes", current.filter(f => f !== funcao));
+                            }
+                          }}
+                        />
+                        <Label htmlFor={`funcao-${funcao}`} className="text-sm cursor-pointer">
+                          {FUNCOES_IGREJA[funcao]}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                  {watchFuncoes.includes("outro") && (
+                    <FormField
+                      control={form.control}
+                      name="funcaoDescricao"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Descreva a função</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Qual função?" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* Departamentos */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">Departamentos que participa</Label>
+                  <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                    {(Object.keys(DEPARTAMENTOS) as Departamento[]).map((dept) => (
+                      <div key={dept} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`dept-${dept}`}
+                          checked={watchDepartamentos.includes(dept)}
+                          onCheckedChange={(checked) => {
+                            const current = form.getValues("departamentos") || [];
+                            if (checked) {
+                              form.setValue("departamentos", [...current, dept]);
+                            } else {
+                              form.setValue("departamentos", current.filter(d => d !== dept));
+                            }
+                          }}
+                        />
+                        <Label htmlFor={`dept-${dept}`} className="text-sm cursor-pointer">
+                          {DEPARTAMENTOS[dept]}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                  {watchDepartamentos.includes("outro") && (
+                    <FormField
+                      control={form.control}
+                      name="departamentoDescricao"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Descreva o departamento</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Qual departamento?" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </div>
+              </>
+            )}
+
+            <Separator />
+
+            {/* É líder? */}
+            <FormField
+              control={form.control}
+              name="ehLider"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel className="cursor-pointer">
+                      É líder de algum grupo ou departamento?
+                    </FormLabel>
+                  </div>
+                </FormItem>
+              )}
+            />
+
+            {watchEhLider && (
+              <FormField
+                control={form.control}
+                name="liderDe"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Líder de qual grupo/departamento?</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ex: Grupo de Jovens, Louvor, Célula Centro..." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+          </CardContent>
+        </Card>
+
         {/* Address */}
         <Card>
           <CardHeader>
@@ -746,7 +939,7 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
           >
             Cancelar
           </Button>
-          <Button type="submit" disabled={loading || !coordenadas}>
+          <Button type="submit" disabled={loading}>
             {loading && <Spinner className="mr-2 h-4 w-4" />}
             {membro ? "Salvar Alterações" : "Cadastrar Membro"}
           </Button>
