@@ -10,7 +10,14 @@ export type CargoMembro =
   | "auxiliar_escala"
   | "outro";
 
-export type NivelAcesso = "admin" | "lider" | "obreiro";
+// Níveis de acesso hierárquicos
+// - full: acesso total ao sistema (todas as unidades)
+// - admin: acesso à sua unidade + unidades filhas
+// - user: acesso apenas à sua unidade
+export type NivelAcesso = "full" | "admin" | "user";
+
+// Tipos de unidade na hierarquia
+export type TipoUnidade = "sede" | "congregacao" | "subcongregacao";
 
 export type TipoGrupo = "estudo" | "visita" | "acompanhamento";
 
@@ -47,17 +54,32 @@ export interface Coordenadas {
 export interface Igreja {
   id: string;
   nome: string;
-  endereco: Endereco;
-  coordenadas: Coordenadas;
-  convencao: string;
-  sede: string;
-  dirigente: string;
+  codIgreja?: string;
+  convencao?: string;
+  ministerio?: string;
+  endereco?: Endereco;
+  coordenadas?: Coordenadas;
+  dirigente?: string;
   fotoUrl?: string;
   telefone?: string;
   email?: string;
-  dataCadastro: Timestamp;
+  dataCadastro?: Timestamp;
   atualizadoPor?: string;
   dataAtualizacao?: Timestamp;
+}
+
+// Unidade hierárquica (Sede > Congregação > Subcongregação)
+export interface Unidade {
+  id: string;
+  nome: string;
+  tipo: TipoUnidade;
+  unidadePaiId?: string; // ID da unidade pai (null para sede)
+  endereco?: Endereco;
+  coordenadas?: Coordenadas;
+  dirigente?: string;
+  telefone?: string;
+  ativa: boolean;
+  dataCriacao: Timestamp;
 }
 
 
@@ -70,6 +92,7 @@ export interface Usuario {
   membroId?: string;
   grupoId?: string; // ID do grupo que o líder gerencia
   igrejaId: string; // ID da igreja (multi-tenant)
+  unidadeId: string; // ID da unidade do usuário
   ativo: boolean;
   dataCriacao: Timestamp;
 }
@@ -98,6 +121,7 @@ export interface Membro {
   cargo?: CargoMembro;
   cargoDescricao?: string;
   grupoId?: string; // Grupo ao qual o membro pertence
+  unidadeId: string; // ID da unidade do membro
   dataCadastro: Timestamp;
   dataNascimento?: Timestamp;
   dataConversao?: Timestamp;
@@ -142,9 +166,15 @@ export const CARGOS_MEMBRO: Record<CargoMembro, string> = {
 };
 
 export const NIVEIS_ACESSO: Record<NivelAcesso, string> = {
+  full: "Acesso Total",
   admin: "Administrador",
-  lider: "Líder",
-  obreiro: "Obreiro",
+  user: "Usuário",
+};
+
+export const TIPOS_UNIDADE: Record<TipoUnidade, string> = {
+  sede: "Sede",
+  congregacao: "Congregação",
+  subcongregacao: "Subcongregação",
 };
 
 export const TIPOS_GRUPO: Record<TipoGrupo, string> = {

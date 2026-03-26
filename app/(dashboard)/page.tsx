@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { query, where, getDocs } from "firebase/firestore";
-import { getIgrejaCollection, IGREJA_ID_FIELD } from "@/lib/firestore";
+import { query, where, getDocs, collectionGroup } from "firebase/firestore";
+import { getMembrosCollection, getGruposCollection, getUnidadesCollection } from "@/lib/firestore";
+import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,42 +20,41 @@ import {
   Cake,
   Gift,
   ChevronRight,
+  Building2,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { TIPOS_MEMBRO, CORES_TIPO, type TipoMembro, type Membro } from "@/lib/types";
+import { TIPOS_MEMBRO, CORES_TIPO, TIPOS_UNIDADE, type TipoMembro, type Membro } from "@/lib/types";
 
 interface DashboardStats {
   totalMembros: number;
   porTipo: Record<TipoMembro, number>;
   totalGrupos: number;
+  totalUnidades: number;
   ultimosCadastros: number;
   aniversariantesHoje: Membro[];
   aniversariantesSemana: Membro[];
 }
 
 export default function DashboardPage() {
-  const { usuario, igrejaId } = useAuth();
+  const { 
+    usuario, 
+    igrejaId, 
+    unidadeAtual, 
+    unidadesAcessiveis, 
+    todasUnidades,
+    temAcessoTotal 
+  } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log("[v0] Dashboard - igrejaId:", igrejaId);
-    
-    if (!igrejaId) {
+    if (!igrejaId || unidadesAcessiveis.length === 0) {
       setLoading(false);
       return;
     }
 
     async function loadStats() {
       try {
-        // Get members count by type - filtrar por igrejaID
-        const membrosRef = getIgrejaCollection(igrejaId, "membros");
-        console.log("[v0] Buscando membros com filtro:", IGREJA_ID_FIELD, "==", igrejaId);
-        const membrosSnap = await getDocs(
-          query(membrosRef, where(IGREJA_ID_FIELD, "==", igrejaId))
-        );
-        console.log("[v0] Membros encontrados:", membrosSnap.size);
-
         const porTipo: Record<TipoMembro, number> = {
           visitante: 0,
           congregado: 0,
@@ -66,50 +66,62 @@ export default function DashboardPage() {
         const now = new Date();
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         let ultimosCadastros = 0;
+        let totalMembros = 0;
+        let totalGrupos = 0;
         const aniversariantesHoje: Membro[] = [];
         const aniversariantesSemana: Membro[] = [];
 
-        membrosSnap.forEach((docSnap) => {
-          const data = docSnap.data();
-          if (data.tipo in porTipo) {
-            porTipo[data.tipo as TipoMembro]++;
-          }
-          if (data.dataCadastro?.toDate() > thirtyDaysAgo) {
-            ultimosCadastros++;
-          }
-          
-          // Check birthdays
-          if (data.dataNascimento) {
-            const birthDate = data.dataNascimento.toDate();
-            const today = new Date();
-            const isToday = birthDate.getDate() === today.getDate() && birthDate.getMonth() === today.getMonth();
+        // Busca membros de todas as unidades acessíveis
+        for (const unidadeId of unidadesAcessiveis) {
+          const membrosRef = getMembrosCollection(igrejaId!, unidadeId);
+          const membrosSnap = await getDocs(query(membrosRef));
+
+          membrosSnap.forEach((docSnap) => {
+            const data = docSnap.data();
+            totalMembros++;
             
-            if (isToday) {
-              aniversariantesHoje.push({ id: docSnap.id, ...data } as Membro);
+            if (data.tipo in porTipo) {
+              porTipo[data.tipo as TipoMembro]++;
+            }
+            if (data.dataCadastro?.toDate() > thirtyDaysAgo) {
+              ultimosCadastros++;
             }
             
-            // Check if birthday is within next 7 days
-            for (let i = 1; i <= 7; i++) {
-              const futureDate = new Date(today);
-              futureDate.setDate(today.getDate() + i);
-              if (birthDate.getDate() === futureDate.getDate() && birthDate.getMonth() === futureDate.getMonth()) {
-                aniversariantesSemana.push({ id: docSnap.id, ...data } as Membro);
-                break;
+            // Check birthdays
+            if (data.dataNascimento) {
+              const birthDate = data.dataNascimento.toDate();
+              const today = new Date();
+              const isToday = birthDate.getDate() === today.getDate() && birthDate.getMonth() === today.getMonth();
+              
+              if (isToday) {
+                aniversariantesHoje.push({ id: docSnap.id, ...data, unidadeId } as Membro & { unidadeId: string });
+              }
+              
+              // Check if birthday is within next 7 days
+              for (let i = 1; i <= 7; i++) {
+                const futureDate = new Date(today);
+                futureDate.setDate(today.getDate() + i);
+                if (birthDate.getDate() === futureDate.getDate() && birthDate.getMonth() === futureDate.getMonth()) {
+                  aniversariantesSemana.push({ id: docSnap.id, ...data, unidadeId } as Membro & { unidadeId: string });
+                  break;
+                }
               }
             }
-          }
-        });
+          });
 
-        // Get groups count
-        const gruposRef = getIgrejaCollection(igrejaId, "grupos");
-        const gruposSnap = await getDocs(
-          query(gruposRef, where("ativo", "==", true))
-        );
+          // Get groups count
+          const gruposRef = getGruposCollection(igrejaId!, unidadeId);
+          const gruposSnap = await getDocs(
+            query(gruposRef, where("ativo", "==", true))
+          );
+          totalGrupos += gruposSnap.size;
+        }
 
         setStats({
-          totalMembros: membrosSnap.size,
+          totalMembros,
           porTipo,
-          totalGrupos: gruposSnap.size,
+          totalGrupos,
+          totalUnidades: unidadesAcessiveis.length,
           ultimosCadastros,
           aniversariantesHoje,
           aniversariantesSemana,
@@ -122,7 +134,7 @@ export default function DashboardPage() {
     }
 
     loadStats();
-  }, [igrejaId]);
+  }, [igrejaId, unidadesAcessiveis]);
 
   return (
     <div className="space-y-6">
@@ -133,7 +145,14 @@ export default function DashboardPage() {
             Bem-vindo, {usuario?.nome || "Usuário"}
           </h1>
           <p className="text-muted-foreground">
-            Gerencie os membros da sua igreja com facilidade
+            {unidadeAtual ? (
+              <>
+                {TIPOS_UNIDADE[unidadeAtual.tipo]}: <span className="font-medium">{unidadeAtual.nome}</span>
+                {temAcessoTotal() && " (Acesso Total)"}
+              </>
+            ) : (
+              "Gerencie os membros da sua igreja com facilidade"
+            )}
           </p>
         </div>
         <Button asChild>
@@ -158,7 +177,24 @@ export default function DashboardPage() {
               <div className="text-2xl font-bold">{stats?.totalMembros || 0}</div>
             )}
             <p className="text-xs text-muted-foreground">
-              Cadastrados no sistema
+              {temAcessoTotal() ? "Em todas as unidades" : `Em ${unidadesAcessiveis.length} unidade(s)`}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Unidades</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <Skeleton className="h-8 w-20" />
+            ) : (
+              <div className="text-2xl font-bold">{stats?.totalUnidades || 0}</div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {temAcessoTotal() ? "Total de unidades" : "Com acesso"}
             </p>
           </CardContent>
         </Card>
@@ -196,27 +232,6 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">
               Cadastros recentes
             </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Ações Rápidas</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="flex gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/mapa">
-                <Map className="mr-1 h-3 w-3" />
-                Mapa
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/membros">
-                <Users className="mr-1 h-3 w-3" />
-                Lista
-              </Link>
-            </Button>
           </CardContent>
         </Card>
       </div>

@@ -243,11 +243,14 @@ export default function LoginPage() {
       // Por padrão, novos usuários são associados à igreja principal
       const DEFAULT_IGREJA_ID = "igreja-missao-restaurar";
 
+      // NOTA: unidadeId precisa ser configurado manualmente no Firestore
+      // pelo administrador após o cadastro inicial
       await setDoc(usersRef, {
         telefone: currentUser.phoneNumber,
         nome: name.trim(),
-        nivelAcesso: "obreiro", // Default to obreiro, admin must be set manually in Firestore
+        nivelAcesso: "user", // Default to user, admin/full must be set manually in Firestore
         igrejaId: DEFAULT_IGREJA_ID, // Associa o usuário à igreja
+        unidadeId: "", // Será configurado pelo admin
         ativo: true,
         dataCriacao: Timestamp.now(),
       });

@@ -7,9 +7,10 @@ import {
   orderBy,
   onSnapshot,
   updateDoc,
-  where,
+  doc,
 } from "firebase/firestore";
-import { getIgrejaCollection, getIgrejaDoc, IGREJA_ID_FIELD } from "@/lib/firestore";
+import { getMembrosCollection, getMembroDoc } from "@/lib/firestore";
+import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +60,7 @@ import {
   Users,
   Phone,
   MapPin,
+  Building2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -67,49 +69,73 @@ import {
   CargoMembro,
   TIPOS_MEMBRO,
   CARGOS_MEMBRO,
+  TIPOS_UNIDADE,
 } from "@/lib/types";
 
+// Membro com unidadeId para rastreamento
+interface MembroComUnidade extends Membro {
+  unidadeId: string;
+}
+
 export default function MembrosPage() {
-  const { usuario, igrejaId } = useAuth();
-  const [membros, setMembros] = useState<Membro[]>([]);
+  const { usuario, igrejaId, unidadesAcessiveis, todasUnidades, nivelAcesso, temAcessoTotal } = useAuth();
+  const [membros, setMembros] = useState<MembroComUnidade[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterTipo, setFilterTipo] = useState<TipoMembro | "todos">("todos");
   const [filterCargo, setFilterCargo] = useState<CargoMembro | "todos">("todos");
-  const [memberToDeactivate, setMemberToDeactivate] = useState<Membro | null>(null);
+  const [filterUnidade, setFilterUnidade] = useState<string>("todos");
+  const [memberToDeactivate, setMemberToDeactivate] = useState<MembroComUnidade | null>(null);
 
-  const isAdmin = usuario?.nivelAcesso === "admin";
-  const isLider = usuario?.nivelAcesso === "lider";
+  const canEdit = nivelAcesso === "admin" || nivelAcesso === "full";
 
   useEffect(() => {
-    if (!igrejaId) {
+    if (!igrejaId || unidadesAcessiveis.length === 0) {
       setLoading(false);
       return;
     }
 
-    const membrosRef = getIgrejaCollection(igrejaId, "membros");
-    const q = query(membrosRef, where(IGREJA_ID_FIELD, "==", igrejaId), orderBy("nome", "asc"));
+    const unsubscribes: (() => void)[] = [];
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const membrosData: Membro[] = [];
-      snapshot.forEach((docSnap) => {
-        membrosData.push({ id: docSnap.id, ...docSnap.data() } as Membro);
+    // Escuta membros de cada unidade acessível
+    unidadesAcessiveis.forEach((unidadeId) => {
+      const membrosRef = getMembrosCollection(igrejaId, unidadeId);
+      const q = query(membrosRef, orderBy("nome", "asc"));
+
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const membrosData: MembroComUnidade[] = [];
+        snapshot.forEach((docSnap) => {
+          membrosData.push({ 
+            id: docSnap.id, 
+            ...docSnap.data(),
+            unidadeId 
+          } as MembroComUnidade);
+        });
+        
+        // Atualiza os membros dessa unidade
+        setMembros((prev) => {
+          const outrosUnidades = prev.filter((m) => m.unidadeId !== unidadeId);
+          return [...outrosUnidades, ...membrosData].sort((a, b) => 
+            a.nome.localeCompare(b.nome)
+          );
+        });
+        setLoading(false);
       });
-      setMembros(membrosData);
-      setLoading(false);
+
+      unsubscribes.push(unsubscribe);
     });
 
-    return () => unsubscribe();
-  }, [igrejaId]);
+    return () => {
+      unsubscribes.forEach((unsubscribe) => unsubscribe());
+    };
+  }, [igrejaId, unidadesAcessiveis]);
 
   const filteredMembros = membros.filter((membro) => {
     // Only show active members
     if (!membro.ativo) return false;
 
-    // If user is a leader, only show members from their group
-    if (isLider && usuario?.grupoId) {
-      if (membro.grupoId !== usuario.grupoId) return false;
-    }
+    // Unidade filter
+    if (filterUnidade !== "todos" && membro.unidadeId !== filterUnidade) return false;
 
     // Search filter
     const matchesSearch =
@@ -132,9 +158,8 @@ export default function MembrosPage() {
     if (!memberToDeactivate || !igrejaId) return;
 
     try {
-      await updateDoc(getIgrejaDoc(igrejaId, "membros", memberToDeactivate.id), {
-        ativo: false,
-      });
+      const membroRef = getMembroDoc(igrejaId, memberToDeactivate.unidadeId, memberToDeactivate.id);
+      await updateDoc(membroRef, { ativo: false });
       toast.success("Membro desativado com sucesso");
       setMemberToDeactivate(null);
     } catch (error) {
@@ -150,6 +175,16 @@ export default function MembrosPage() {
     return phone;
   };
 
+  const getUnidadeNome = (unidadeId: string) => {
+    const unidade = todasUnidades.find((u) => u.id === unidadeId);
+    return unidade?.nome || "Não definida";
+  };
+
+  // Unidades acessíveis para o filtro
+  const unidadesParaFiltro = todasUnidades.filter((u) => 
+    unidadesAcessiveis.includes(u.id)
+  );
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -158,10 +193,10 @@ export default function MembrosPage() {
           <h1 className="text-2xl font-bold tracking-tight">Membros</h1>
           <p className="text-muted-foreground">
             {filteredMembros.length} membro{filteredMembros.length !== 1 && "s"}{" "}
-            {isLider ? "no seu grupo" : "cadastrado" + (filteredMembros.length !== 1 ? "s" : "")}
+            {temAcessoTotal() ? "em todas as unidades" : `em ${unidadesAcessiveis.length} unidade(s)`}
           </p>
         </div>
-        {(isAdmin || isLider) && (
+        {canEdit && (
           <Button asChild>
             <Link href="/membros/novo">
               <UserPlus className="mr-2 h-4 w-4" />
@@ -171,22 +206,10 @@ export default function MembrosPage() {
         )}
       </div>
 
-      {/* Leader info banner */}
-      {isLider && (
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="flex items-center gap-3 p-4">
-            <Users className="h-5 w-5 text-primary" />
-            <p className="text-sm">
-              Como líder, você visualiza apenas os membros do seu grupo.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Filters */}
       <Card>
-        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row">
-          <div className="relative flex-1">
+        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Buscar por nome, telefone ou bairro..."
@@ -195,6 +218,27 @@ export default function MembrosPage() {
               className="pl-9"
             />
           </div>
+          
+          {/* Filtro de Unidade */}
+          {unidadesParaFiltro.length > 1 && (
+            <Select
+              value={filterUnidade}
+              onValueChange={setFilterUnidade}
+            >
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Unidade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todas as unidades</SelectItem>
+                {unidadesParaFiltro.map((unidade) => (
+                  <SelectItem key={unidade.id} value={unidade.id}>
+                    {unidade.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
           <Select
             value={filterTipo}
             onValueChange={(v) => setFilterTipo(v as TipoMembro | "todos")}
@@ -264,7 +308,7 @@ export default function MembrosPage() {
                   ? "Comece cadastrando o primeiro membro da igreja."
                   : "Tente ajustar os filtros de busca."}
               </EmptyDescription>
-              {membros.length === 0 && (
+              {membros.length === 0 && canEdit && (
                 <Button asChild className="mt-4">
                   <Link href="/membros/novo">
                     <UserPlus className="mr-2 h-4 w-4" />
@@ -285,13 +329,16 @@ export default function MembrosPage() {
                   <TableHead className="hidden md:table-cell">Telefone</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead className="hidden lg:table-cell">Cargo</TableHead>
+                  {unidadesParaFiltro.length > 1 && (
+                    <TableHead className="hidden xl:table-cell">Unidade</TableHead>
+                  )}
                   <TableHead className="hidden sm:table-cell">Bairro</TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredMembros.map((membro) => (
-                  <TableRow key={membro.id}>
+                  <TableRow key={`${membro.unidadeId}-${membro.id}`}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9">
@@ -334,6 +381,14 @@ export default function MembrosPage() {
                         <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
+                    {unidadesParaFiltro.length > 1 && (
+                      <TableCell className="hidden xl:table-cell">
+                        <div className="flex items-center gap-1 text-sm">
+                          <Building2 className="h-3 w-3 text-muted-foreground" />
+                          {getUnidadeNome(membro.unidadeId)}
+                        </div>
+                      </TableCell>
+                    )}
                     <TableCell className="hidden sm:table-cell">
                       <div className="flex items-center gap-1 text-sm">
                         <MapPin className="h-3 w-3 text-muted-foreground" />
@@ -350,24 +405,28 @@ export default function MembrosPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem asChild>
-                            <Link href={`/membros/${membro.id}`}>
+                            <Link href={`/membros/${membro.id}?unidade=${membro.unidadeId}`}>
                               <Eye className="mr-2 h-4 w-4" />
                               Visualizar
                             </Link>
                           </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                            <Link href={`/membros/${membro.id}/editar`}>
-                              <Pencil className="mr-2 h-4 w-4" />
-                              Editar
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => setMemberToDeactivate(membro)}
-                          >
-                            <UserX className="mr-2 h-4 w-4" />
-                            Desativar
-                          </DropdownMenuItem>
+                          {canEdit && (
+                            <>
+                              <DropdownMenuItem asChild>
+                                <Link href={`/membros/${membro.id}/editar?unidade=${membro.unidadeId}`}>
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  Editar
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => setMemberToDeactivate(membro)}
+                              >
+                                <UserX className="mr-2 h-4 w-4" />
+                                Desativar
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

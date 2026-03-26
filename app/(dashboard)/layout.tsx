@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { doc, updateDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { Header } from "@/components/dashboard/header";
@@ -11,16 +9,13 @@ import { useAuth } from "@/contexts/auth-context";
 import { Spinner } from "@/components/ui/spinner";
 import { SetupRequired } from "@/components/setup-required";
 
-const DEFAULT_IGREJA_ID = "igreja-missao-restaurar";
-
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user, usuario, igrejaId, loading, isConfigured } = useAuth();
+  const { user, usuario, loading, isConfigured, unidadesAcessiveis } = useAuth();
   const router = useRouter();
-  const [fixingIgrejaId, setFixingIgrejaId] = useState(false);
 
   useEffect(() => {
     if (!loading && isConfigured && !user) {
@@ -28,44 +23,18 @@ export default function DashboardLayout({
     }
   }, [user, loading, isConfigured, router]);
 
-  // Auto-fix: Se o usuário existe mas não tem igrejaId ou tem o antigo, atualiza automaticamente
-  useEffect(() => {
-    const fixMissingIgrejaId = async () => {
-      console.log("[v0] Layout - verificando igrejaId:", { loading, hasUser: !!user, hasUsuario: !!usuario, igrejaId });
-      
-      // Corrige se não tem igrejaId ou se está com o valor antigo
-      const needsFix = !igrejaId || igrejaId === "igreja-principal";
-      
-      if (!loading && user && usuario && needsFix && db && !fixingIgrejaId) {
-        setFixingIgrejaId(true);
-        try {
-          console.log("[v0] Corrigindo igrejaId de:", igrejaId, "para:", DEFAULT_IGREJA_ID);
-          await updateDoc(doc(db, "usuarios", user.uid), {
-            igrejaId: DEFAULT_IGREJA_ID,
-          });
-          console.log("[v0] igrejaId atualizado com sucesso!");
-          // O AuthContext vai recarregar automaticamente via onSnapshot
-        } catch (error) {
-          console.error("[v0] Erro ao atualizar igrejaId:", error);
-        }
-      }
-    };
-
-    fixMissingIgrejaId();
-  }, [loading, user, usuario, igrejaId, fixingIgrejaId]);
-
   // Show setup page if Firebase is not configured
   if (!isConfigured) {
     return <SetupRequired />;
   }
 
-  if (loading || fixingIgrejaId) {
+  if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Spinner className="h-8 w-8 text-primary" />
           <p className="text-sm text-muted-foreground">
-            {fixingIgrejaId ? "Configurando igreja..." : "Carregando..."}
+            Carregando...
           </p>
         </div>
       </div>
@@ -76,8 +45,20 @@ export default function DashboardLayout({
     return null;
   }
 
-  // If user is authenticated but doesn't have a user document, show warning but allow access
-  // This can happen if Firestore permissions are not configured correctly
+  // Se usuário logado mas sem unidades acessíveis, mostra mensagem
+  if (usuario && unidadesAcessiveis.length === 0) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-4 text-center max-w-md p-6">
+          <h2 className="text-xl font-semibold">Configuração Pendente</h2>
+          <p className="text-muted-foreground">
+            Seu usuário ainda não está vinculado a nenhuma unidade. 
+            Entre em contato com o administrador do sistema para configurar seu acesso.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>

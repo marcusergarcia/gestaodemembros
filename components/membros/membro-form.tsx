@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { addDoc, updateDoc, Timestamp } from "firebase/firestore";
-import { getIgrejaCollection, getIgrejaDoc, IGREJA_ID_FIELD } from "@/lib/firestore";
+import { getMembrosCollection, getMembroDoc } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +46,7 @@ import {
   CargoMembro,
   TIPOS_MEMBRO,
   CARGOS_MEMBRO,
+  TIPOS_UNIDADE,
 } from "@/lib/types";
 import { FotoUpload } from "./foto-upload";
 
@@ -73,11 +74,20 @@ type MembroFormData = z.infer<typeof membroSchema>;
 
 interface MembroFormProps {
   membro?: Membro;
+  unidadeIdParam?: string; // Para edição, passa a unidade do membro
 }
 
-export function MembroForm({ membro }: MembroFormProps) {
+export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
   const router = useRouter();
-  const { user, igrejaId } = useAuth();
+  const { user, igrejaId, unidadeId, unidadesAcessiveis, todasUnidades, temAcessoTotal } = useAuth();
+  const [selectedUnidadeId, setSelectedUnidadeId] = useState<string>(
+    unidadeIdParam || membro?.unidadeId || unidadeId || ""
+  );
+  
+  // Unidades disponíveis para seleção
+  const unidadesDisponiveis = todasUnidades.filter(u => 
+    unidadesAcessiveis.includes(u.id)
+  );
   const [loading, setLoading] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
   const [loadingGeo, setLoadingGeo] = useState(false);
@@ -189,8 +199,8 @@ export function MembroForm({ membro }: MembroFormProps) {
       return;
     }
 
-    if (!user || !igrejaId) {
-      toast.error("Você precisa estar logado");
+    if (!user || !igrejaId || !selectedUnidadeId) {
+      toast.error("Você precisa estar logado e selecionar uma unidade");
       return;
     }
 
@@ -219,15 +229,16 @@ export function MembroForm({ membro }: MembroFormProps) {
         ativo: true,
       };
 
-      if (membro) {
+      if (membro && unidadeIdParam) {
         // Update existing member
-        await updateDoc(getIgrejaDoc(igrejaId, "membros", membro.id), membroData);
+        const membroRef = getMembroDoc(igrejaId, unidadeIdParam, membro.id);
+        await updateDoc(membroRef, membroData);
         toast.success("Membro atualizado com sucesso!");
       } else {
-        // Create new member - adiciona igrejaID para filtro
-        await addDoc(getIgrejaCollection(igrejaId, "membros"), {
+        // Create new member na unidade selecionada
+        await addDoc(getMembrosCollection(igrejaId, selectedUnidadeId), {
           ...membroData,
-          [IGREJA_ID_FIELD]: igrejaId,
+          unidadeId: selectedUnidadeId,
           dataCadastro: Timestamp.now(),
           criadoPor: user.uid,
         });
@@ -362,6 +373,38 @@ export function MembroForm({ membro }: MembroFormProps) {
             />
           </CardContent>
         </Card>
+
+        {/* Unidade */}
+        {unidadesDisponiveis.length > 1 && !membro && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Unidade</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Selecione a Unidade *</label>
+                <Select
+                  value={selectedUnidadeId}
+                  onValueChange={setSelectedUnidadeId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a unidade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {unidadesDisponiveis.map((unidade) => (
+                      <SelectItem key={unidade.id} value={unidade.id}>
+                        {unidade.nome} ({TIPOS_UNIDADE[unidade.tipo]})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  O membro será cadastrado nesta unidade
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Classification */}
         <Card>
