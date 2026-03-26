@@ -202,9 +202,16 @@ export default function LoginPage() {
           // New user - need to collect name
           setStep("name");
         } else {
-          // Existing user - redirect to dashboard
-          toast.success("Login realizado com sucesso!");
-          router.push("/");
+          // Existing user - check if has igreja configured
+          const userData = userDoc.data();
+          if (userData.igrejaId && userData.igrejaId !== "") {
+            toast.success("Login realizado com sucesso!");
+            router.push("/");
+          } else {
+            // User exists but no igreja - go to setup
+            toast.info("Configure sua igreja para continuar.");
+            router.push("/setup-igreja");
+          }
         }
       } catch (firestoreErr) {
         // If permission denied, user probably doesn't exist yet - go to name step
@@ -236,40 +243,28 @@ export default function LoginPage() {
       const currentUser = auth.currentUser;
       if (!currentUser) throw new Error("Usuário não autenticado");
 
-      // Create user document - first user is admin, others are obreiro
+      // Cria documento do usuário SEM igreja (será configurado no setup)
       const usersRef = doc(db, "usuarios", currentUser.uid);
 
-      // IMPORTANTE: Definir igrejaId para multi-tenant funcionar
-      // Por padrão, novos usuários são associados à igreja principal
-      // Este ID deve corresponder ao documento em /igrejas/{igrejaId} no Firestore
-      const DEFAULT_IGREJA_ID = "Mx701cK52vSIF5q0PdTR";
-      
-      // Busca a primeira unidade da igreja para associar ao usuário
-      const { collection, getDocs } = await import("firebase/firestore");
-      const unidadesRef = collection(db, "igrejas", DEFAULT_IGREJA_ID, "unidades");
-      const unidadesSnap = await getDocs(unidadesRef);
-      const primeiraUnidadeId = unidadesSnap.docs.length > 0 ? unidadesSnap.docs[0].id : "";
-
-      // NOTA: unidadeId é preenchido automaticamente com a primeira unidade
       await setDoc(usersRef, {
         telefone: currentUser.phoneNumber,
         nome: name.trim(),
-        nivelAcesso: "admin", // Primeiro usuário pode ser admin, ajustar conforme necessário
-        igrejaId: DEFAULT_IGREJA_ID, // Associa o usuário à igreja
-        unidadeId: primeiraUnidadeId, // Associa à primeira unidade encontrada
+        nivelAcesso: "full", // Primeiro usuário tem acesso full para configurar
+        igrejaId: "", // Será preenchido no setup da igreja
+        unidadeId: "", // Será preenchido no setup da igreja
         ativo: true,
         dataCriacao: Timestamp.now(),
       });
 
-      toast.success("Conta criada com sucesso!");
-      router.push("/");
+      toast.success("Conta criada! Agora configure sua igreja.");
+      router.push("/setup-igreja");
     } catch (err: unknown) {
       console.error("Erro ao criar usuário:", err);
       
-      // If permission denied, still redirect - the user is authenticated
+      // If permission denied, still redirect to setup
       if (err instanceof Error && err.message.includes("permission-denied")) {
-        toast.info("Login realizado! Configure as permissões do Firestore.");
-        router.push("/");
+        toast.info("Login realizado! Configure sua igreja.");
+        router.push("/setup-igreja");
       } else {
         setError("Erro ao criar conta. Verifique as permissões do Firestore.");
       }
