@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { addDoc, query, where, onSnapshot, Timestamp } from "firebase/firestore";
-import { getIgrejaCollection, IGREJA_ID_FIELD } from "@/lib/firestore";
+import { addDoc, query, getDocs, Timestamp } from "firebase/firestore";
+import { getMembrosCollection, getAcompanhamentosCollection } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,16 +94,16 @@ type AcompanhamentoFormData = z.infer<typeof acompanhamentoSchema>;
 
 export default function NovoAcompanhamentoPage() {
   const router = useRouter();
-  const { user, usuario, igrejaId } = useAuth();
+  const { user, usuario, igrejaId, unidadeId, unidadesAcessiveis } = useAuth();
   const [loading, setLoading] = useState(false);
   const [membros, setMembros] = useState<Membro[]>([]);
   const [loadingMembros, setLoadingMembros] = useState(true);
   const [openMembro, setOpenMembro] = useState(false);
   const [selectedMembro, setSelectedMembro] = useState<Membro | null>(null);
 
-  const canCreate = usuario?.nivelAcesso === "admin" || 
-                    usuario?.nivelAcesso === "lider" || 
-                    usuario?.nivelAcesso === "obreiro";
+  const canCreate = usuario?.nivelAcesso === "full" || 
+                    usuario?.nivelAcesso === "admin" || 
+                    usuario?.nivelAcesso === "user";
 
   const form = useForm<AcompanhamentoFormData>({
     resolver: zodResolver(acompanhamentoSchema),
@@ -127,26 +127,34 @@ export default function NovoAcompanhamentoPage() {
   const isHospital = watchTipo === "visita_hospitalar";
 
   useEffect(() => {
-    if (!igrejaId) {
+    if (!igrejaId || unidadesAcessiveis.length === 0) {
       setLoadingMembros(false);
       return;
     }
 
-    const membrosRef = getIgrejaCollection(igrejaId, "membros");
-    const q = query(membrosRef, where(IGREJA_ID_FIELD, "==", igrejaId));
+    const loadMembros = async () => {
+      try {
+        const data: Membro[] = [];
+        
+        for (const uId of unidadesAcessiveis) {
+          const membrosRef = getMembrosCollection(igrejaId, uId);
+          const snapshot = await getDocs(query(membrosRef));
+          snapshot.forEach((docSnap) => {
+            data.push({ id: docSnap.id, unidadeId: uId, ...docSnap.data() } as Membro);
+          });
+        }
+        
+        data.sort((a, b) => a.nome.localeCompare(b.nome));
+        setMembros(data);
+      } catch (error) {
+        console.error("Erro ao carregar membros:", error);
+      } finally {
+        setLoadingMembros(false);
+      }
+    };
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data: Membro[] = [];
-      snapshot.forEach((docSnap) => {
-        data.push({ id: docSnap.id, ...docSnap.data() } as Membro);
-      });
-      data.sort((a, b) => a.nome.localeCompare(b.nome));
-      setMembros(data);
-      setLoadingMembros(false);
-    });
-
-    return () => unsubscribe();
-  }, [igrejaId]);
+    loadMembros();
+  }, [igrejaId, unidadesAcessiveis]);
 
   useEffect(() => {
     if (!canCreate) {
@@ -167,8 +175,8 @@ export default function NovoAcompanhamentoPage() {
       return;
     }
 
-    if (!igrejaId) {
-      toast.error("Erro: igreja não identificada");
+    if (!igrejaId || !membro.unidadeId) {
+      toast.error("Erro: igreja ou unidade não identificada");
       return;
     }
 
@@ -200,7 +208,7 @@ export default function NovoAcompanhamentoPage() {
         };
       }
 
-      await addDoc(getIgrejaCollection(igrejaId, "acompanhamentos"), acompanhamentoData);
+      await addDoc(getAcompanhamentosCollection(igrejaId, membro.unidadeId), acompanhamentoData);
       toast.success("Acompanhamento registrado com sucesso!");
       router.push("/acompanhamento");
     } catch (error) {

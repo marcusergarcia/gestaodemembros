@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { query, where, onSnapshot, getDoc } from "firebase/firestore";
-import { getIgrejaCollection, getIgrejaDoc2, IGREJA_ID_FIELD } from "@/lib/firestore";
+import { query, onSnapshot, getDoc, getDocs } from "firebase/firestore";
+import { getMembrosCollection, getIgrejaDoc } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { GoogleMap } from "@/components/mapa/google-map";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,7 @@ import {
 } from "@/lib/types";
 
 export default function MapaPage() {
-  const { igrejaId } = useAuth();
+  const { igrejaId, unidadesAcessiveis } = useAuth();
   const [membros, setMembros] = useState<Membro[]>([]);
   const [igreja, setIgreja] = useState<Igreja | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,9 +55,10 @@ export default function MapaPage() {
 
     const loadIgreja = async () => {
       try {
-        const igrejaDoc = await getDoc(getIgrejaDoc2(igrejaId));
-        if (igrejaDoc.exists()) {
-          setIgreja({ id: igrejaDoc.id, ...igrejaDoc.data() } as Igreja);
+        const igrejaDocRef = getIgrejaDoc(igrejaId);
+        const igrejaDocSnap = await getDoc(igrejaDocRef);
+        if (igrejaDocSnap.exists()) {
+          setIgreja({ id: igrejaDocSnap.id, ...igrejaDocSnap.data() } as Igreja);
         }
       } catch (error) {
         console.error("Erro ao carregar dados da igreja:", error);
@@ -67,27 +68,35 @@ export default function MapaPage() {
     loadIgreja();
   }, [igrejaId]);
 
-  // Load members
+  // Load members from all accessible units
   useEffect(() => {
-    if (!igrejaId) {
+    if (!igrejaId || unidadesAcessiveis.length === 0) {
       setLoading(false);
       return;
     }
 
-    const membrosRef = getIgrejaCollection(igrejaId, "membros");
-    const q = query(membrosRef, where(IGREJA_ID_FIELD, "==", igrejaId));
+    const loadMembros = async () => {
+      try {
+        const membrosData: Membro[] = [];
+        
+        for (const unidadeId of unidadesAcessiveis) {
+          const membrosRef = getMembrosCollection(igrejaId, unidadeId);
+          const snapshot = await getDocs(query(membrosRef));
+          snapshot.forEach((docSnap) => {
+            membrosData.push({ id: docSnap.id, unidadeId, ...docSnap.data() } as Membro);
+          });
+        }
+        
+        setMembros(membrosData);
+      } catch (error) {
+        console.error("Erro ao carregar membros:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const membrosData: Membro[] = [];
-      snapshot.forEach((docSnap) => {
-        membrosData.push({ id: docSnap.id, ...docSnap.data() } as Membro);
-      });
-      setMembros(membrosData);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [igrejaId]);
+    loadMembros();
+  }, [igrejaId, unidadesAcessiveis]);
 
   // Get unique bairros
   const bairros = Array.from(

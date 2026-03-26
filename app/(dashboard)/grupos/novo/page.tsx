@@ -4,12 +4,11 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   query,
-  where,
-  onSnapshot,
+  getDocs,
   addDoc,
   Timestamp,
 } from "firebase/firestore";
-import { getIgrejaCollection, IGREJA_ID_FIELD } from "@/lib/firestore";
+import { getMembrosCollection, getGruposCollection } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { GoogleMap } from "@/components/mapa/google-map";
 import { Button } from "@/components/ui/button";
@@ -55,7 +54,7 @@ import {
 
 export default function NovoGrupoPage() {
   const router = useRouter();
-  const { user, igrejaId } = useAuth();
+  const { user, igrejaId, unidadeId, unidadesAcessiveis } = useAuth();
 
   const [membros, setMembros] = useState<Membro[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,27 +72,35 @@ export default function NovoGrupoPage() {
   const [linkWhatsApp, setLinkWhatsApp] = useState("");
   const [copied, setCopied] = useState(false);
 
-  // Load members
+  // Load members from all accessible units
   useEffect(() => {
-    if (!igrejaId) {
+    if (!igrejaId || unidadesAcessiveis.length === 0) {
       setLoading(false);
       return;
     }
 
-    const membrosRef = getIgrejaCollection(igrejaId, "membros");
-    const q = query(membrosRef, where(IGREJA_ID_FIELD, "==", igrejaId));
+    const loadMembros = async () => {
+      try {
+        const membrosData: Membro[] = [];
+        
+        for (const uId of unidadesAcessiveis) {
+          const membrosRef = getMembrosCollection(igrejaId, uId);
+          const snapshot = await getDocs(query(membrosRef));
+          snapshot.forEach((docSnap) => {
+            membrosData.push({ id: docSnap.id, unidadeId: uId, ...docSnap.data() } as Membro);
+          });
+        }
+        
+        setMembros(membrosData);
+      } catch (error) {
+        console.error("Erro ao carregar membros:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const membrosData: Membro[] = [];
-      snapshot.forEach((docSnap) => {
-        membrosData.push({ id: docSnap.id, ...docSnap.data() } as Membro);
-      });
-      setMembros(membrosData);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [igrejaId]);
+    loadMembros();
+  }, [igrejaId, unidadesAcessiveis]);
 
   // Filter leaders/obreiros
   const lideres = membros.filter((m) =>
@@ -188,14 +195,14 @@ ${selectedMembers.map((m) => `- ${m.nome}: ${formatPhone(m.telefone)}`).join("\n
       return;
     }
 
-    if (!igrejaId) {
-      toast.error("Erro: igreja não identificada");
+    if (!igrejaId || !unidadeId) {
+      toast.error("Erro: igreja ou unidade não identificada");
       return;
     }
 
     setSaving(true);
     try {
-      await addDoc(getIgrejaCollection(igrejaId, "grupos"), {
+      await addDoc(getGruposCollection(igrejaId, unidadeId), {
         nome: nomeGrupo,
         tipo: tipoGrupo,
         liderUid: user?.uid,

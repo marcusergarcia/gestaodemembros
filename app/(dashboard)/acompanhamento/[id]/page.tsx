@@ -3,8 +3,9 @@
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getDoc, deleteDoc } from "firebase/firestore";
-import { getIgrejaDoc } from "@/lib/firestore";
+import { getDoc, deleteDoc, doc } from "firebase/firestore";
+import { getAcompanhamentosCollection, COLLECTIONS } from "@/lib/firestore";
+import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,30 +59,35 @@ const ICONES_ACOMPANHAMENTO: Record<TipoAcompanhamento, React.ComponentType<{ cl
 export default function AcompanhamentoDetalhesPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const router = useRouter();
-  const { usuario, igrejaId } = useAuth();
+  const { usuario, igrejaId, unidadesAcessiveis } = useAuth();
   const [acompanhamento, setAcompanhamento] = useState<Acompanhamento | null>(null);
+  const [acompUnidadeId, setAcompUnidadeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
 
-  const canDelete = usuario?.nivelAcesso === "admin";
+  const canDelete = usuario?.nivelAcesso === "admin" || usuario?.nivelAcesso === "full";
 
   useEffect(() => {
-    if (!igrejaId) {
+    if (!igrejaId || unidadesAcessiveis.length === 0) {
       setLoading(false);
       return;
     }
 
     async function loadAcompanhamento() {
       try {
-        const docRef = getIgrejaDoc(igrejaId, "acompanhamentos", resolvedParams.id);
-        const docSnap = await getDoc(docRef);
+        // Search in all accessible units
+        for (const unidadeId of unidadesAcessiveis) {
+          const docRef = doc(db!, COLLECTIONS.IGREJAS, igrejaId, COLLECTIONS.UNIDADES, unidadeId, COLLECTIONS.ACOMPANHAMENTOS, resolvedParams.id);
+          const docSnap = await getDoc(docRef);
 
-        if (docSnap.exists()) {
-          setAcompanhamento({ id: docSnap.id, ...docSnap.data() } as Acompanhamento);
-        } else {
-          toast.error("Acompanhamento não encontrado");
-          router.push("/acompanhamento");
+          if (docSnap.exists()) {
+            setAcompanhamento({ id: docSnap.id, unidadeId, ...docSnap.data() } as Acompanhamento);
+            setAcompUnidadeId(unidadeId);
+            return;
+          }
         }
+        // Not found
+        router.push("/acompanhamento");
       } catch (error) {
         console.error("Erro ao carregar acompanhamento:", error);
         toast.error("Erro ao carregar acompanhamento");

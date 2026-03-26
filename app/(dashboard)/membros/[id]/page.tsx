@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { getDoc, query, where, orderBy, onSnapshot } from "firebase/firestore";
-import { getIgrejaDoc, getIgrejaCollection } from "@/lib/firestore";
+import { getDoc, query, where, orderBy, onSnapshot, getDocs } from "firebase/firestore";
+import { getMembroDoc, getMembrosCollection, getAcompanhamentosCollection } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,14 +51,15 @@ const ICONES_ACOMPANHAMENTO: Record<TipoAcompanhamento, React.ComponentType<{ cl
 export default function MembroDetalhesPage() {
   const params = useParams();
   const router = useRouter();
-  const { igrejaId } = useAuth();
+  const { igrejaId, unidadesAcessiveis } = useAuth();
+  const [membroUnidadeId, setMembroUnidadeId] = useState<string | null>(null);
   const [membro, setMembro] = useState<Membro | null>(null);
   const [acompanhamentos, setAcompanhamentos] = useState<Acompanhamento[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingAcomp, setLoadingAcomp] = useState(true);
 
   useEffect(() => {
-    if (!igrejaId) {
+    if (!igrejaId || unidadesAcessiveis.length === 0) {
       setLoading(false);
       setLoadingAcomp(false);
       return;
@@ -66,11 +67,24 @@ export default function MembroDetalhesPage() {
 
     async function loadMembro() {
       try {
-        const docRef = getIgrejaDoc(igrejaId, "membros", params.id as string);
-        const docSnap = await getDoc(docRef);
+        // Search for member in all accessible units
+        let foundMembro: Membro | null = null;
+        let foundUnidadeId: string | null = null;
+        
+        for (const unidadeId of unidadesAcessiveis) {
+          const docRef = getMembroDoc(igrejaId, unidadeId, params.id as string);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            foundMembro = { id: docSnap.id, unidadeId, ...docSnap.data() } as Membro;
+            foundUnidadeId = unidadeId;
+            break;
+          }
+        }
+        
+        if (foundMembro) {
+          setMembro(foundMembro);
+          setMembroUnidadeId(foundUnidadeId);
 
-        if (docSnap.exists()) {
-          setMembro({ id: docSnap.id, ...docSnap.data() } as Membro);
         } else {
           router.push("/membros");
         }
@@ -82,26 +96,39 @@ export default function MembroDetalhesPage() {
     }
 
     loadMembro();
+  }, [params.id, router, igrejaId, unidadesAcessiveis]);
 
-    // Load acompanhamentos for this member
-    const acompRef = getIgrejaCollection(igrejaId, "acompanhamentos");
-    const acompQuery = query(
-      acompRef,
-      where("membroId", "==", params.id),
-      orderBy("data", "desc")
-    );
-
-    const unsubscribe = onSnapshot(acompQuery, (snapshot) => {
-      const data: Acompanhamento[] = [];
-      snapshot.forEach((docSnap) => {
-        data.push({ id: docSnap.id, ...docSnap.data() } as Acompanhamento);
-      });
-      setAcompanhamentos(data);
+  // Load acompanhamentos for this member after we find which unit they belong to
+  useEffect(() => {
+    if (!igrejaId || !membroUnidadeId) {
       setLoadingAcomp(false);
-    });
+      return;
+    }
 
-    return () => unsubscribe();
-  }, [params.id, router, igrejaId]);
+    const loadAcompanhamentos = async () => {
+      try {
+        const acompRef = getAcompanhamentosCollection(igrejaId, membroUnidadeId);
+        const acompQuery = query(
+          acompRef,
+          where("membroId", "==", params.id),
+          orderBy("data", "desc")
+        );
+        
+        const snapshot = await getDocs(acompQuery);
+        const data: Acompanhamento[] = [];
+        snapshot.forEach((docSnap) => {
+          data.push({ id: docSnap.id, unidadeId: membroUnidadeId, ...docSnap.data() } as Acompanhamento);
+        });
+        setAcompanhamentos(data);
+      } catch (error) {
+        console.error("Erro ao carregar acompanhamentos:", error);
+      } finally {
+        setLoadingAcomp(false);
+      }
+    };
+
+    loadAcompanhamentos();
+  }, [params.id, igrejaId, membroUnidadeId]);
 
   const formatPhone = (phone: string) => {
     if (phone.length === 11) {

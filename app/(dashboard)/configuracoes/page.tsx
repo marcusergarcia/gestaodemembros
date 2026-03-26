@@ -9,9 +9,10 @@ import {
   onSnapshot,
   doc,
   updateDoc,
+  getDocs,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { getIgrejaCollection } from "@/lib/firestore";
+import { getUsuariosCollection, getGruposCollection } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +49,7 @@ import { Usuario, Grupo, NivelAcesso, NIVEIS_ACESSO } from "@/lib/types";
 
 export default function ConfiguracoesPage() {
   const router = useRouter();
-  const { usuario, igrejaId } = useAuth();
+  const { usuario, igrejaId, unidadesAcessiveis, unidadeId } = useAuth();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +57,7 @@ export default function ConfiguracoesPage() {
 
   // Redirect non-admins
   useEffect(() => {
-    if (usuario && usuario.nivelAcesso !== "admin") {
+    if (usuario && usuario.nivelAcesso !== "admin" && usuario.nivelAcesso !== "full") {
       router.push("/");
       toast.error("Acesso restrito a administradores");
     }
@@ -64,42 +65,50 @@ export default function ConfiguracoesPage() {
 
   // Load users and groups
   useEffect(() => {
-    if (!igrejaId) {
+    if (!igrejaId || unidadesAcessiveis.length === 0) {
       setLoading(false);
       return;
     }
 
-    // Users are at root level, filtered by igrejaId
-    const usersRef = collection(db, "usuarios");
+    // Users are stored under the church
+    const usersRef = getUsuariosCollection(igrejaId);
     const q = query(usersRef, orderBy("dataCriacao", "desc"));
 
     const unsubscribeUsers = onSnapshot(q, (snapshot) => {
       const usersData: Usuario[] = [];
       snapshot.forEach((docSnap) => {
         const userData = { uid: docSnap.id, ...docSnap.data() } as Usuario;
-        // Only show users from the same church
-        if (userData.igrejaId === igrejaId) {
-          usersData.push(userData);
-        }
+        usersData.push(userData);
       });
       setUsuarios(usersData);
       setLoading(false);
     });
 
-    const gruposRef = getIgrejaCollection(igrejaId, "grupos");
-    const unsubscribeGrupos = onSnapshot(gruposRef, (snapshot) => {
-      const gruposData: Grupo[] = [];
-      snapshot.forEach((docSnap) => {
-        gruposData.push({ id: docSnap.id, ...docSnap.data() } as Grupo);
-      });
-      setGrupos(gruposData);
-    });
+    // Load grupos from accessible units
+    const loadGrupos = async () => {
+      try {
+        const gruposData: Grupo[] = [];
+        
+        for (const uId of unidadesAcessiveis) {
+          const gruposRef = getGruposCollection(igrejaId, uId);
+          const snapshot = await getDocs(gruposRef);
+          snapshot.forEach((docSnap) => {
+            gruposData.push({ id: docSnap.id, unidadeId: uId, ...docSnap.data() } as Grupo);
+          });
+        }
+        
+        setGrupos(gruposData);
+      } catch (error) {
+        console.error("Erro ao carregar grupos:", error);
+      }
+    };
+    
+    loadGrupos();
 
     return () => {
       unsubscribeUsers();
-      unsubscribeGrupos();
     };
-  }, [igrejaId]);
+  }, [igrejaId, unidadesAcessiveis]);
 
   const handleChangeAccess = async (uid: string, novoNivel: NivelAcesso) => {
     try {
@@ -168,7 +177,7 @@ export default function ConfiguracoesPage() {
     }
   };
 
-  if (usuario?.nivelAcesso !== "admin") {
+  if (usuario?.nivelAcesso !== "admin" && usuario?.nivelAcesso !== "full") {
     return null;
   }
 
