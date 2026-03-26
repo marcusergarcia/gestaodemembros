@@ -140,10 +140,19 @@ export default function SetupIgrejaPage() {
   }, [user]);
 
   // Carrega unidades da igreja selecionada
+  // Não carrega se a sede foi criada inline (já temos os dados)
   useEffect(() => {
     async function carregarUnidades() {
       if (!igrejaIdSelecionada) {
         setUnidadesExistentes([]);
+        return;
+      }
+      
+      // Se a sede foi criada inline, não precisamos buscar do Firestore
+      // Os dados já foram adicionados ao estado em handleCriarSede
+      if (sedeCriada && sedeCriada.id === igrejaIdSelecionada) {
+        // Busca convenção da igreja (já está no sedeCriada)
+        setConvencaoSede(sedeCriada.convencao || "");
         return;
       }
       
@@ -174,7 +183,7 @@ export default function SetupIgrejaPage() {
     }
     
     carregarUnidades();
-  }, [igrejaIdSelecionada, igrejasExistentes]);
+  }, [igrejaIdSelecionada, igrejasExistentes, sedeCriada]);
 
   // Filtra congregações da igreja selecionada
   const congregacoesDaIgreja = unidadesExistentes.filter(u => u.tipo === "congregacao");
@@ -237,7 +246,7 @@ export default function SetupIgrejaPage() {
       
       // Cria a unidade sede dentro da subcoleção unidades
       const unidadesRef = collection(db, "igrejas", novaIgrejaRef.id, "unidades");
-      await addDoc(unidadesRef, {
+      const novaUnidadeSedeRef = await addDoc(unidadesRef, {
         nome: novaSedeNome.trim(),
         tipo: "sede",
         dataCriacao: Timestamp.now(),
@@ -245,22 +254,42 @@ export default function SetupIgrejaPage() {
         dirigente: novaSedeDirigente.trim() || null,
       });
       
-      // Atualiza estado
-      setSedeCriada({
-        id: novaIgrejaRef.id,
-        nome: novaSedeNome.trim(),
-        convencao: novaSedeConvencao.trim(),
-      });
-      setIgrejaIdSelecionada(novaIgrejaRef.id);
-      setConvencaoSede(novaSedeConvencao.trim());
+      const novaSedeId = novaIgrejaRef.id;
+      const nomeSedeNovo = novaSedeNome.trim();
+      const convencaoNova = novaSedeConvencao.trim();
+      
+      // Atualiza estados de forma síncrona para evitar race conditions
+      // Primeiro fecha o form
       setMostrarFormSede(false);
       
-      // Adiciona à lista de igrejas existentes
+      // Atualiza lista de igrejas existentes
       setIgrejasExistentes(prev => [...prev, {
-        id: novaIgrejaRef.id,
-        nome: novaSedeNome.trim(),
-        convencao: novaSedeConvencao.trim(),
+        id: novaSedeId,
+        nome: nomeSedeNovo,
+        convencao: convencaoNova,
       }]);
+      
+      // Atualiza lista de unidades com a sede recém-criada
+      setUnidadesExistentes([{
+        id: novaUnidadeSedeRef.id,
+        igrejaId: novaSedeId,
+        nome: nomeSedeNovo,
+        tipo: "sede",
+      }]);
+      
+      // Atualiza a sede criada e seleção
+      setSedeCriada({
+        id: novaSedeId,
+        nome: nomeSedeNovo,
+        convencao: convencaoNova,
+      });
+      setIgrejaIdSelecionada(novaSedeId);
+      setConvencaoSede(convencaoNova);
+      
+      // Limpa os campos do form
+      setNovaSedeNome("");
+      setNovaSedeConvencao("");
+      setNovaSedeDirigente("");
       
       toast.success("Sede criada com sucesso!");
     } catch (err) {
@@ -278,8 +307,8 @@ export default function SetupIgrejaPage() {
       return;
     }
     
-    const igrejaId = sedeCriada?.id || igrejaIdSelecionada;
-    if (!igrejaId) {
+    const igrejaIdParaCriar = sedeCriada?.id || igrejaIdSelecionada;
+    if (!igrejaIdParaCriar) {
       toast.error("Selecione ou crie uma sede primeiro");
       return;
     }
@@ -289,7 +318,7 @@ export default function SetupIgrejaPage() {
     
     setLoading(true);
     try {
-      const unidadesRef = collection(db, "igrejas", igrejaId, "unidades");
+      const unidadesRef = collection(db, "igrejas", igrejaIdParaCriar, "unidades");
       const novaCongregacaoRef = await addDoc(unidadesRef, {
         nome: novaCongregacaoNome.trim(),
         tipo: "congregacao",
@@ -299,22 +328,31 @@ export default function SetupIgrejaPage() {
         dirigente: novaCongregacaoDirigente.trim() || null,
       });
       
-      // Atualiza estado
-      setCongregacaoCriada({
-        id: novaCongregacaoRef.id,
-        nome: novaCongregacaoNome.trim(),
-      });
-      setCongregacaoIdSelecionada(novaCongregacaoRef.id);
+      const novaCongId = novaCongregacaoRef.id;
+      const nomeCongNovo = novaCongregacaoNome.trim();
+      
+      // Fecha o form primeiro
       setMostrarFormCongregacao(false);
       
       // Adiciona à lista de unidades existentes
       setUnidadesExistentes(prev => [...prev, {
-        id: novaCongregacaoRef.id,
-        igrejaId: igrejaId,
-        nome: novaCongregacaoNome.trim(),
+        id: novaCongId,
+        igrejaId: igrejaIdParaCriar,
+        nome: nomeCongNovo,
         tipo: "congregacao",
         unidadePaiId: unidadeSede?.id,
       }]);
+      
+      // Atualiza estado da congregação criada
+      setCongregacaoCriada({
+        id: novaCongId,
+        nome: nomeCongNovo,
+      });
+      setCongregacaoIdSelecionada(novaCongId);
+      
+      // Limpa os campos do form
+      setNovaCongregacaoNome("");
+      setNovaCongregacaoDirigente("");
       
       toast.success("Congregação criada com sucesso!");
     } catch (err) {
