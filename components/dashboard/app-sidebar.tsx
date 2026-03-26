@@ -13,6 +13,7 @@ import {
   Cake,
   HeartHandshake,
   BarChart3,
+  Building2,
 } from "lucide-react";
 import {
   Sidebar,
@@ -71,6 +72,11 @@ const menuItems = [
 
 const adminItems = [
   {
+    title: "Unidades",
+    href: "/unidades",
+    icon: Building2,
+  },
+  {
     title: "Igreja",
     href: "/igreja",
     icon: Church,
@@ -86,7 +92,7 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { usuario, signOut } = useAuth();
 
-  const isAdmin = usuario?.nivelAcesso === "admin";
+  const isAdmin = usuario?.nivelAcesso === "admin" || usuario?.nivelAcesso === "full";
 
   return (
     <Sidebar>

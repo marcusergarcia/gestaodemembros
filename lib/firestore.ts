@@ -1,62 +1,219 @@
-// Firestore helpers para multi-tenant (multi-igrejas)
-import { collection, doc } from "firebase/firestore";
+// Firestore helpers para estrutura hierárquica multi-tenant
+// Estrutura: /igrejas/{igrejaId}/unidades/{unidadeId}/membros
+//            /igrejas/{igrejaId}/unidades
+//            /igrejas/{igrejaId}/usuarios
+
+import { collection, doc, query, where, getDocs, DocumentData } from "firebase/firestore";
 import { db } from "./firebase";
+import type { Unidade, NivelAcesso } from "./types";
 
-// Mapeamento de nomes de coleção (código -> Firestore)
-// O Firestore usa "members" (inglês) mas o código usa "membros"
-const COLLECTION_MAP: Record<string, string> = {
-  membros: "members",
-  grupos: "grupos",
-  acompanhamentos: "acompanhamentos",
-};
-
-/**
- * Retorna a referência da coleção na RAIZ do Firestore
- * Estrutura: /{collectionName} (filtrando por igrejaID no documento)
- * 
- * NOTA: Os membros são salvos na raiz com campo igrejaID para filtro
- */
-export function getIgrejaCollection(igrejaId: string, collectionName: string) {
-  if (!db) throw new Error("Firebase não configurado");
-  if (!igrejaId) throw new Error("igrejaId é obrigatório");
-
-  const firestoreCollectionName =
-    COLLECTION_MAP[collectionName] || collectionName;
-
-  // 🔥 NOVA ESTRUTURA (CORRETA)
-  return collection(db, "igrejas", igrejaId, firestoreCollectionName);
-}
+// Nomes das coleções padronizados
+export const COLLECTIONS = {
+  IGREJAS: "igrejas",
+  UNIDADES: "unidades",
+  MEMBROS: "membros",
+  GRUPOS: "grupos",
+  ACOMPANHAMENTOS: "acompanhamentos",
+  USUARIOS: "usuarios",
+} as const;
 
 /**
- * Retorna a referência do documento na coleção raiz
- * Estrutura: /{collectionName}/{docId}
+ * Retorna a referência da coleção de igrejas
  */
-export function getIgrejaDoc(igrejaId: string, collectionName: string, docId: string) {
+export function getIgrejasCollection() {
   if (!db) throw new Error("Firebase não configurado");
-  if (!igrejaId) throw new Error("igrejaId é obrigatório");
-
-  // Mapeia o nome da coleção se necessário
-  const firestoreCollectionName = COLLECTION_MAP[collectionName] || collectionName;
-
-  return doc(db, firestoreCollectionName, docId);
+  return collection(db, COLLECTIONS.IGREJAS);
 }
 
 /**
  * Retorna a referência do documento da igreja
- * Estrutura: /igrejas/{igrejaId}
  */
-export function getIgrejaDoc2(igrejaId: string) {
+export function getIgrejaDoc(igrejaId: string) {
   if (!db) throw new Error("Firebase não configurado");
   if (!igrejaId) throw new Error("igrejaId é obrigatório");
-  return doc(db, "igrejas", igrejaId);
+  return doc(db, COLLECTIONS.IGREJAS, igrejaId);
 }
 
-// Nomes das coleções padronizados
-export const COLLECTIONS = {
-  MEMBROS: "membros", // Mapeado para "members" no Firestore
-  GRUPOS: "grupos",
-  ACOMPANHAMENTOS: "acompanhamentos",
-  USUARIOS: "usuarios", // Usuários ficam na raiz, com igrejaId no documento
-} as const;
+/**
+ * Retorna a referência da coleção de unidades de uma igreja
+ */
+export function getUnidadesCollection(igrejaId: string) {
+  if (!db) throw new Error("Firebase não configurado");
+  if (!igrejaId) throw new Error("igrejaId é obrigatório");
+  return collection(db, COLLECTIONS.IGREJAS, igrejaId, COLLECTIONS.UNIDADES);
+}
 
+/**
+ * Retorna a referência do documento de uma unidade
+ */
+export function getUnidadeDoc(igrejaId: string, unidadeId: string) {
+  if (!db) throw new Error("Firebase não configurado");
+  if (!igrejaId) throw new Error("igrejaId é obrigatório");
+  if (!unidadeId) throw new Error("unidadeId é obrigatório");
+  return doc(db, COLLECTIONS.IGREJAS, igrejaId, COLLECTIONS.UNIDADES, unidadeId);
+}
 
+/**
+ * Retorna a referência da coleção de membros de uma unidade
+ */
+export function getMembrosCollection(igrejaId: string, unidadeId: string) {
+  if (!db) throw new Error("Firebase não configurado");
+  if (!igrejaId) throw new Error("igrejaId é obrigatório");
+  if (!unidadeId) throw new Error("unidadeId é obrigatório");
+  return collection(db, COLLECTIONS.IGREJAS, igrejaId, COLLECTIONS.UNIDADES, unidadeId, COLLECTIONS.MEMBROS);
+}
+
+/**
+ * Retorna a referência do documento de um membro
+ */
+export function getMembroDoc(igrejaId: string, unidadeId: string, membroId: string) {
+  if (!db) throw new Error("Firebase não configurado");
+  if (!igrejaId) throw new Error("igrejaId é obrigatório");
+  if (!unidadeId) throw new Error("unidadeId é obrigatório");
+  if (!membroId) throw new Error("membroId é obrigatório");
+  return doc(db, COLLECTIONS.IGREJAS, igrejaId, COLLECTIONS.UNIDADES, unidadeId, COLLECTIONS.MEMBROS, membroId);
+}
+
+/**
+ * Retorna a referência da coleção de usuários de uma igreja
+ */
+export function getUsuariosCollection(igrejaId: string) {
+  if (!db) throw new Error("Firebase não configurado");
+  if (!igrejaId) throw new Error("igrejaId é obrigatório");
+  return collection(db, COLLECTIONS.IGREJAS, igrejaId, COLLECTIONS.USUARIOS);
+}
+
+/**
+ * Retorna a referência do documento de um usuário
+ */
+export function getUsuarioDoc(igrejaId: string, usuarioId: string) {
+  if (!db) throw new Error("Firebase não configurado");
+  if (!igrejaId) throw new Error("igrejaId é obrigatório");
+  if (!usuarioId) throw new Error("usuarioId é obrigatório");
+  return doc(db, COLLECTIONS.IGREJAS, igrejaId, COLLECTIONS.USUARIOS, usuarioId);
+}
+
+/**
+ * Retorna a referência da coleção de grupos de uma unidade
+ */
+export function getGruposCollection(igrejaId: string, unidadeId: string) {
+  if (!db) throw new Error("Firebase não configurado");
+  if (!igrejaId) throw new Error("igrejaId é obrigatório");
+  if (!unidadeId) throw new Error("unidadeId é obrigatório");
+  return collection(db, COLLECTIONS.IGREJAS, igrejaId, COLLECTIONS.UNIDADES, unidadeId, COLLECTIONS.GRUPOS);
+}
+
+/**
+ * Retorna a referência da coleção de acompanhamentos de uma unidade
+ */
+export function getAcompanhamentosCollection(igrejaId: string, unidadeId: string) {
+  if (!db) throw new Error("Firebase não configurado");
+  if (!igrejaId) throw new Error("igrejaId é obrigatório");
+  if (!unidadeId) throw new Error("unidadeId é obrigatório");
+  return collection(db, COLLECTIONS.IGREJAS, igrejaId, COLLECTIONS.UNIDADES, unidadeId, COLLECTIONS.ACOMPANHAMENTOS);
+}
+
+/**
+ * Busca todas as unidades filhas de uma unidade (recursivo)
+ * Retorna array de IDs de unidades acessíveis
+ */
+export async function getUnidadesFilhas(igrejaId: string, unidadeId: string): Promise<string[]> {
+  if (!db) throw new Error("Firebase não configurado");
+  
+  const filhasIds: string[] = [];
+  const unidadesRef = getUnidadesCollection(igrejaId);
+  
+  // Busca unidades que têm esta unidade como pai
+  const q = query(unidadesRef, where("unidadePaiId", "==", unidadeId));
+  const snapshot = await getDocs(q);
+  
+  for (const docSnap of snapshot.docs) {
+    const filhaId = docSnap.id;
+    filhasIds.push(filhaId);
+    
+    // Busca recursivamente as filhas desta filha
+    const subFilhas = await getUnidadesFilhas(igrejaId, filhaId);
+    filhasIds.push(...subFilhas);
+  }
+  
+  return filhasIds;
+}
+
+/**
+ * Retorna todas as unidades acessíveis baseado no nível de acesso
+ * - full: todas as unidades
+ * - admin: sua unidade + unidades filhas
+ * - user: apenas sua unidade
+ */
+export async function getUnidadesAcessiveis(
+  igrejaId: string, 
+  unidadeId: string, 
+  nivelAcesso: NivelAcesso
+): Promise<string[]> {
+  if (!db) throw new Error("Firebase não configurado");
+  
+  // Full: acesso a todas as unidades
+  if (nivelAcesso === "full") {
+    const unidadesRef = getUnidadesCollection(igrejaId);
+    const snapshot = await getDocs(unidadesRef);
+    return snapshot.docs.map(doc => doc.id);
+  }
+  
+  // User: apenas sua unidade
+  if (nivelAcesso === "user") {
+    return [unidadeId];
+  }
+  
+  // Admin: sua unidade + filhas
+  const filhas = await getUnidadesFilhas(igrejaId, unidadeId);
+  return [unidadeId, ...filhas];
+}
+
+/**
+ * Carrega todas as unidades com seus dados
+ */
+export async function carregarTodasUnidades(igrejaId: string): Promise<Unidade[]> {
+  if (!db) throw new Error("Firebase não configurado");
+  
+  const unidadesRef = getUnidadesCollection(igrejaId);
+  const snapshot = await getDocs(unidadesRef);
+  
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as Unidade[];
+}
+
+// ============================================
+// FUNÇÕES DE COMPATIBILIDADE (LEGADO)
+// Para manter compatibilidade durante a migração
+// ============================================
+
+/**
+ * @deprecated Use getMembrosCollection ou getUnidadesCollection
+ * Mantido para compatibilidade com código legado
+ */
+export function getIgrejaCollection(igrejaId: string, collectionName: string) {
+  if (!db) throw new Error("Firebase não configurado");
+  if (!igrejaId) throw new Error("igrejaId é obrigatório");
+  
+  // Para unidades, retorna a coleção de unidades
+  if (collectionName === "unidades") {
+    return getUnidadesCollection(igrejaId);
+  }
+  
+  // Para usuarios, retorna a coleção de usuarios
+  if (collectionName === "usuarios") {
+    return getUsuariosCollection(igrejaId);
+  }
+  
+  // Para outras coleções, assume que está na raiz da igreja
+  return collection(db, COLLECTIONS.IGREJAS, igrejaId, collectionName);
+}
+
+/**
+ * @deprecated Use getIgrejaDoc
+ */
+export function getIgrejaDoc2(igrejaId: string) {
+  return getIgrejaDoc(igrejaId);
+}

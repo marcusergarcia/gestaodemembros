@@ -12,17 +12,27 @@ import {
   onAuthStateChanged,
   signOut as firebaseSignOut,
 } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
+import { onSnapshot } from "firebase/firestore";
 import { auth, db, isFirebaseConfigured } from "@/lib/firebase";
-import { Usuario } from "@/lib/types";
+import { Usuario, Unidade, NivelAcesso } from "@/lib/types";
+import { getUsuarioDoc, getUnidadesAcessiveis, getUnidadeDoc, carregarTodasUnidades } from "@/lib/firestore";
 
 interface AuthContextType {
   user: User | null;
   usuario: Usuario | null;
-  igrejaId: string | null; // ID da igreja do usuário logado
+  igrejaId: string | null;
+  unidadeId: string | null;
+  unidadeAtual: Unidade | null;
+  unidadesAcessiveis: string[]; // IDs das unidades que o usuário pode acessar
+  todasUnidades: Unidade[]; // Todas as unidades carregadas
+  nivelAcesso: NivelAcesso | null;
   loading: boolean;
   isConfigured: boolean;
   signOut: () => Promise<void>;
+  // Função para verificar se o usuário pode acessar uma unidade
+  podeAcessarUnidade: (unidadeId: string) => boolean;
+  // Função para verificar se o usuário tem acesso total
+  temAcessoTotal: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,10 +41,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [igrejaId, setIgrejaId] = useState<string | null>(null);
+  const [unidadeId, setUnidadeId] = useState<string | null>(null);
+  const [unidadeAtual, setUnidadeAtual] = useState<Unidade | null>(null);
+  const [unidadesAcessiveis, setUnidadesAcessiveis] = useState<string[]>([]);
+  const [todasUnidades, setTodasUnidades] = useState<Unidade[]>([]);
+  const [nivelAcesso, setNivelAcesso] = useState<NivelAcesso | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Carrega as unidades acessíveis quando o usuário é carregado
   useEffect(() => {
-    // If Firebase is not configured, stop loading
+    async function carregarUnidades() {
+      if (!usuario || !igrejaId || !usuario.unidadeId) {
+        setUnidadesAcessiveis([]);
+        setTodasUnidades([]);
+        setUnidadeAtual(null);
+        return;
+      }
+
+      try {
+        // Carrega todas as unidades da igreja
+        const unidades = await carregarTodasUnidades(igrejaId);
+        setTodasUnidades(unidades);
+
+        // Encontra a unidade atual do usuário
+        const unidade = unidades.find(u => u.id === usuario.unidadeId);
+        setUnidadeAtual(unidade || null);
+
+        // Carrega as unidades acessíveis baseado no nível de acesso
+        const acessiveis = await getUnidadesAcessiveis(
+          igrejaId,
+          usuario.unidadeId,
+          usuario.nivelAcesso
+        );
+        setUnidadesAcessiveis(acessiveis);
+      } catch (error) {
+        console.error("Erro ao carregar unidades:", error);
+        setUnidadesAcessiveis([usuario.unidadeId]);
+      }
+    }
+
+    carregarUnidades();
+  }, [usuario, igrejaId]);
+
+  useEffect(() => {
     if (!isFirebaseConfigured || !auth || !db) {
       setLoading(false);
       return;
@@ -44,34 +93,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(firebaseUser);
 
       if (firebaseUser) {
-        // Listen to user document changes
-        const userDocRef = doc(db, "usuarios", firebaseUser.uid);
-        const unsubscribeUser = onSnapshot(
-          userDocRef, 
-          (docSnap) => {
+        // Primeiro tenta buscar no formato antigo (coleção raiz usuarios)
+        // Se não encontrar, busca no novo formato
+        const { doc, getDoc } = await import("firebase/firestore");
+        
+        // Tenta buscar na coleção raiz primeiro (formato antigo)
+        const userDocRefOld = doc(db, "usuarios", firebaseUser.uid);
+        const docSnapOld = await getDoc(userDocRefOld);
+        
+        if (docSnapOld.exists()) {
+          const userData = { uid: docSnapOld.id, ...docSnapOld.data() } as Usuario;
+          setUsuario(userData);
+          setIgrejaId(userData.igrejaId || null);
+          setUnidadeId(userData.unidadeId || null);
+          setNivelAcesso(userData.nivelAcesso || null);
+          setLoading(false);
+          
+          // Configura listener para mudanças
+          const unsubscribeUser = onSnapshot(userDocRefOld, (docSnap) => {
             if (docSnap.exists()) {
               const userData = { uid: docSnap.id, ...docSnap.data() } as Usuario;
-              console.log("[v0] Usuario carregado:", userData);
-              console.log("[v0] igrejaId do usuario:", userData.igrejaId);
               setUsuario(userData);
               setIgrejaId(userData.igrejaId || null);
-            } else {
-              setUsuario(null);
-              setIgrejaId(null);
+              setUnidadeId(userData.unidadeId || null);
+              setNivelAcesso(userData.nivelAcesso || null);
             }
-            setLoading(false);
-          },
-          () => {
-            // Handle permission errors gracefully
-            setUsuario(null);
-            setLoading(false);
-          }
-        );
-
-        return () => unsubscribeUser();
+          });
+          
+          return () => unsubscribeUser();
+        }
+        
+        // Se não encontrou na raiz, busca dentro da igreja
+        // (isso requer saber o igrejaId, que pode vir de um claim ou de outra fonte)
+        setUsuario(null);
+        setIgrejaId(null);
+        setUnidadeId(null);
+        setNivelAcesso(null);
+        setLoading(false);
       } else {
         setUsuario(null);
         setIgrejaId(null);
+        setUnidadeId(null);
+        setNivelAcesso(null);
+        setUnidadesAcessiveis([]);
+        setTodasUnidades([]);
+        setUnidadeAtual(null);
         setLoading(false);
       }
     });
@@ -86,10 +152,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setUsuario(null);
     setIgrejaId(null);
+    setUnidadeId(null);
+    setNivelAcesso(null);
+    setUnidadesAcessiveis([]);
+    setTodasUnidades([]);
+    setUnidadeAtual(null);
+  };
+
+  const podeAcessarUnidade = (targetUnidadeId: string): boolean => {
+    if (nivelAcesso === "full") return true;
+    return unidadesAcessiveis.includes(targetUnidadeId);
+  };
+
+  const temAcessoTotal = (): boolean => {
+    return nivelAcesso === "full";
   };
 
   return (
-    <AuthContext.Provider value={{ user, usuario, igrejaId, loading, isConfigured: isFirebaseConfigured, signOut }}>
+    <AuthContext.Provider 
+      value={{ 
+        user, 
+        usuario, 
+        igrejaId, 
+        unidadeId,
+        unidadeAtual,
+        unidadesAcessiveis,
+        todasUnidades,
+        nivelAcesso,
+        loading, 
+        isConfigured: isFirebaseConfigured, 
+        signOut,
+        podeAcessarUnidade,
+        temAcessoTotal,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
