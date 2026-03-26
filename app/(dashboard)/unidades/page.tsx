@@ -31,6 +31,7 @@ import {
   Search,
   Plus,
   Eye,
+  Edit,
   ChevronRight,
   MapPin,
 } from "lucide-react";
@@ -330,12 +331,22 @@ export default function UnidadesPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" asChild>
-                        <Link href={`/unidades/${unidade.id}`}>
-                          <Eye className="h-4 w-4" />
-                          <span className="sr-only">Ver detalhes</span>
-                        </Link>
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" asChild>
+                          <Link href={`/unidades/${unidade.id}`}>
+                            <Eye className="h-4 w-4" />
+                            <span className="sr-only">Ver detalhes</span>
+                          </Link>
+                        </Button>
+                        {canManageUnidades && (
+                          <Button variant="ghost" size="icon" asChild>
+                            <Link href={`/unidades/${unidade.id}/editar`}>
+                              <Edit className="h-4 w-4" />
+                              <span className="sr-only">Editar</span>
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
