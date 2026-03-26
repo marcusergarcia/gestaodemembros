@@ -93,12 +93,10 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
   
   // Atualiza selectedUnidadeId quando unidades disponíveis carregarem
   useEffect(() => {
-    console.log("[v0] MembroForm - todasUnidades:", todasUnidades.length, "unidadesAcessiveis:", unidadesAcessiveis.length, "unidadesDisponiveis:", unidadesDisponiveis.length, "selectedUnidadeId:", selectedUnidadeId);
     if (!selectedUnidadeId && unidadesDisponiveis.length >= 1) {
-      console.log("[v0] MembroForm - Auto-selecionando unidade:", unidadesDisponiveis[0].id, unidadesDisponiveis[0].nome);
       setSelectedUnidadeId(unidadesDisponiveis[0].id);
     }
-  }, [unidadesDisponiveis, selectedUnidadeId, todasUnidades.length, unidadesAcessiveis.length]);
+  }, [unidadesDisponiveis, selectedUnidadeId]);
   const [loading, setLoading] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
   const [loadingGeo, setLoadingGeo] = useState(false);
