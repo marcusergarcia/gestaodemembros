@@ -147,11 +147,7 @@ export function IgrejaForm({ igreja, onSave, onCancel }: IgrejaFormProps) {
   };
 
   const onSubmit = async (data: IgrejaFormData) => {
-    if (!coordenadas) {
-      toast.error("Por favor, clique em 'Localizar no Mapa' antes de salvar");
-      return;
-    }
-
+    // Coordenadas são opcionais
     setLoading(true);
     try {
       await onSave({
@@ -171,8 +167,12 @@ export function IgrejaForm({ igreja, onSave, onCancel }: IgrejaFormProps) {
           estado: data.estado,
           cep: data.cep.replace(/\D/g, ""),
         },
-        coordenadas,
+        coordenadas: coordenadas || undefined,
       });
+      
+      if (!coordenadas) {
+        toast.info("Igreja salva sem localização no mapa. Você pode adicionar depois.");
+      }
       toast.success(igreja ? "Igreja atualizada com sucesso!" : "Igreja cadastrada com sucesso!");
     } catch {
       toast.error("Erro ao salvar dados da igreja");

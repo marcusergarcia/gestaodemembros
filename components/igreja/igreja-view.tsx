@@ -27,8 +27,19 @@ interface IgrejaViewProps {
 export function IgrejaView({ igreja, onEdit }: IgrejaViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapError, setMapError] = useState(false);
+
+  // Verifica se tem coordenadas válidas
+  const temCoordenadas = igreja.coordenadas && 
+    typeof igreja.coordenadas.lat === "number" && 
+    typeof igreja.coordenadas.lng === "number";
 
   useEffect(() => {
+    if (!temCoordenadas) {
+      setMapError(true);
+      return;
+    }
+
     const initMap = async () => {
       const loader = new Loader({
         apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
@@ -87,11 +98,12 @@ export function IgrejaView({ igreja, onEdit }: IgrejaViewProps) {
         setMapLoaded(true);
       } catch (error) {
         console.error("Erro ao carregar mapa:", error);
+        setMapError(true);
       }
     };
 
     initMap();
-  }, [igreja.coordenadas, igreja.nome]);
+  }, [igreja.coordenadas, igreja.nome, temCoordenadas]);
 
   const formatPhone = (phone?: string) => {
     if (!phone) return null;
@@ -105,12 +117,13 @@ export function IgrejaView({ igreja, onEdit }: IgrejaViewProps) {
     return phone;
   };
 
-  const formatCep = (cep: string) => {
+  const formatCep = (cep?: string) => {
+    if (!cep) return null;
     const digits = cep.replace(/\D/g, "");
     return `${digits.slice(0, 5)}-${digits.slice(5, 8)}`;
   };
 
-  const enderecoCompleto = [
+  const enderecoCompleto = igreja.endereco ? [
     igreja.endereco.logradouro,
     igreja.endereco.numero,
     igreja.endereco.complemento,
@@ -120,7 +133,7 @@ export function IgrejaView({ igreja, onEdit }: IgrejaViewProps) {
     formatCep(igreja.endereco.cep),
   ]
     .filter(Boolean)
-    .join(", ");
+    .join(", ") : "Endereço não cadastrado";
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -224,14 +237,28 @@ export function IgrejaView({ igreja, onEdit }: IgrejaViewProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div
-            ref={mapRef}
-            className="h-80 w-full overflow-hidden rounded-lg bg-muted lg:h-96"
-          />
-          <p className="mt-3 text-center text-sm text-muted-foreground">
-            Coordenadas: {igreja.coordenadas.lat.toFixed(6)},{" "}
-            {igreja.coordenadas.lng.toFixed(6)}
-          </p>
+          {temCoordenadas ? (
+            <>
+              <div
+                ref={mapRef}
+                className="h-80 w-full overflow-hidden rounded-lg bg-muted lg:h-96"
+              />
+              <p className="mt-3 text-center text-sm text-muted-foreground">
+                Coordenadas: {igreja.coordenadas!.lat.toFixed(6)},{" "}
+                {igreja.coordenadas!.lng.toFixed(6)}
+              </p>
+            </>
+          ) : (
+            <div className="flex h-80 flex-col items-center justify-center rounded-lg bg-muted lg:h-96">
+              <MapPin className="h-12 w-12 text-muted-foreground/50" />
+              <p className="mt-4 text-center text-muted-foreground">
+                Localização não definida
+              </p>
+              <p className="text-center text-sm text-muted-foreground">
+                Edite a igreja para adicionar as coordenadas
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
