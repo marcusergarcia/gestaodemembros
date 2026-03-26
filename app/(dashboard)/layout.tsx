@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
@@ -14,18 +14,22 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, usuario, igrejaId, loading, isConfigured } = useAuth();
+  const { user, igrejaId, loading, isConfigured } = useAuth();
   const router = useRouter();
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
-    if (!loading && isConfigured) {
-      if (!user) {
-        router.push("/login");
-      } else if (!igrejaId) {
-        // Usuário logado mas sem igreja configurada (ou sem documento de usuario)
-        // Redireciona para setup da igreja
-        router.push("/setup-igreja");
-      }
+    // Só executa quando loading terminou
+    if (loading || !isConfigured) return;
+    
+    if (!user) {
+      setIsRedirecting(true);
+      router.replace("/login");
+    } else if (!igrejaId) {
+      // Usuário logado mas sem igreja configurada
+      // Redireciona para setup da igreja IMEDIATAMENTE
+      setIsRedirecting(true);
+      router.replace("/setup-igreja");
     }
   }, [user, igrejaId, loading, isConfigured, router]);
 
@@ -34,7 +38,8 @@ export default function DashboardLayout({
     return <SetupRequired />;
   }
 
-  if (loading) {
+  // Enquanto carrega OU redirecionando, mostra loading
+  if (loading || isRedirecting) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -47,18 +52,20 @@ export default function DashboardLayout({
     );
   }
 
+  // Se não tem user, não renderiza nada (vai redirecionar)
   if (!user) {
     return null;
   }
 
-  // Se usuário logado mas sem igreja, mostra loading enquanto redireciona
-  if (user && !igrejaId) {
+  // IMPORTANTE: Se não tem igrejaId, NÃO renderiza o dashboard
+  // O useEffect acima já vai redirecionar
+  if (!igrejaId) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Spinner className="h-8 w-8 text-primary" />
           <p className="text-sm text-muted-foreground">
-            Redirecionando para configuração...
+            Redirecionando para configuração da igreja...
           </p>
         </div>
       </div>
