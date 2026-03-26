@@ -177,7 +177,25 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
   // Geocode address
   const geocodarEndereco = async () => {
     const values = form.getValues();
-    const endereco = `${values.logradouro}, ${values.numero}, ${values.bairro}, ${values.cidade}, ${values.estado}, Brasil`;
+    
+    // Valida se os campos necessários estão preenchidos
+    if (!values.logradouro || !values.numero || !values.cidade || !values.estado) {
+      toast.error("Preencha o endereço completo antes de localizar no mapa");
+      return;
+    }
+    
+    // Monta o endereço de forma mais completa para melhor precisão
+    const partesEndereco = [
+      values.logradouro,
+      values.numero,
+      values.bairro,
+      values.cidade,
+      values.estado,
+      "Brasil"
+    ].filter(Boolean);
+    
+    const endereco = partesEndereco.join(", ");
+    console.log("[v0] Geocodando endereço:", endereco);
 
     setLoadingGeo(true);
     try {
@@ -188,15 +206,18 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
       });
 
       const data = await response.json();
+      console.log("[v0] Resposta geocode:", data);
 
       if (response.ok) {
         setCoordenadas({ lat: data.lat, lng: data.lng });
-        toast.success("Localização encontrada no mapa!");
+        toast.success(`Localização encontrada: ${data.formatted_address || endereco}`);
       } else {
+        console.error("[v0] Erro geocode:", data.error);
         toast.error(data.error || "Não foi possível localizar o endereço");
       }
-    } catch {
-      toast.error("Erro ao buscar localização");
+    } catch (error) {
+      console.error("[v0] Erro ao buscar localização:", error);
+      toast.error("Erro ao buscar localização. Verifique sua conexão.");
     } finally {
       setLoadingGeo(false);
     }
