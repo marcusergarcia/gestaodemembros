@@ -189,14 +189,18 @@ export default function SetupIgrejaPage() {
       throw new Error("Convenção da sede é obrigatória");
     }
 
-    const sedeData: Partial<Igreja> = {
+    // Firestore não aceita undefined, então só incluímos campos com valor
+    const sedeData: Record<string, unknown> = {
       nome: novaSedeNome.trim(),
       tipo: "sede",
       convencao: novaSedeConvencao.trim(),
-      dirigente: novaSedeDirigente.trim() || undefined,
       dataCadastro: Timestamp.now(),
       ativa: true,
     };
+    
+    if (novaSedeDirigente.trim()) {
+      sedeData.dirigente = novaSedeDirigente.trim();
+    }
 
     const igrejasRef = collection(db, "igrejas");
     const novaSedeRef = await addDoc(igrejasRef, sedeData);
@@ -219,16 +223,20 @@ export default function SetupIgrejaPage() {
       throw new Error("Nome da congregação é obrigatório");
     }
 
-    const congregacaoData: Partial<Igreja> = {
+    // Firestore não aceita undefined, então só incluímos campos com valor
+    const congregacaoData: Record<string, unknown> = {
       nome: novaCongregacaoNome.trim(),
       tipo: "congregacao",
       convencao: convencaoParam,
       sedeId: sedeIdParam,
       igrejaPaiId: sedeIdParam,
-      dirigente: novaCongregacaoDirigente.trim() || undefined,
       dataCadastro: Timestamp.now(),
       ativa: true,
     };
+    
+    if (novaCongregacaoDirigente.trim()) {
+      congregacaoData.dirigente = novaCongregacaoDirigente.trim();
+    }
 
     const igrejasRef = collection(db, "igrejas");
     const novaCongregacaoRef = await addDoc(igrejasRef, congregacaoData);
@@ -342,29 +350,37 @@ export default function SetupIgrejaPage() {
       }
 
       // Cria o documento da igreja principal
-      const igrejaData: Partial<Igreja> = {
+      // Nota: Firestore não aceita undefined, então só incluímos campos com valor
+      const igrejaData: Record<string, unknown> = {
         nome: nome.trim(),
         tipo: tipo,
-        dirigente: dirigente.trim() || undefined,
-        convencao: convencaoFinal || undefined,
-        ministerio: ministerio.trim() || undefined,
-        telefone: telefone.trim() || undefined,
-        email: email.trim() || undefined,
-        cnpj: cnpj.trim() || undefined,
-        igrejaPaiId: igrejaPaiIdFinal,
-        sedeId: tipo !== "sede" ? sedeIdFinal : undefined,
-        endereco: {
-          cep: cep || undefined,
-          logradouro: logradouro.trim() || undefined,
-          numero: numero.trim() || undefined,
-          complemento: complemento.trim() || undefined,
-          bairro: bairro.trim() || undefined,
-          cidade: cidade.trim() || undefined,
-          estado: estado.trim() || undefined,
-        },
         dataCadastro: Timestamp.now(),
         ativa: true,
       };
+
+      // Adiciona campos opcionais apenas se tiverem valor
+      if (dirigente.trim()) igrejaData.dirigente = dirigente.trim();
+      if (convencaoFinal) igrejaData.convencao = convencaoFinal;
+      if (ministerio.trim()) igrejaData.ministerio = ministerio.trim();
+      if (telefone.trim()) igrejaData.telefone = telefone.trim();
+      if (email.trim()) igrejaData.email = email.trim();
+      if (cnpj.trim()) igrejaData.cnpj = cnpj.trim();
+      if (igrejaPaiIdFinal) igrejaData.igrejaPaiId = igrejaPaiIdFinal;
+      if (tipo !== "sede" && sedeIdFinal) igrejaData.sedeId = sedeIdFinal;
+
+      // Monta o endereço apenas com campos preenchidos
+      const enderecoData: Record<string, string> = {};
+      if (cep) enderecoData.cep = cep;
+      if (logradouro.trim()) enderecoData.logradouro = logradouro.trim();
+      if (numero.trim()) enderecoData.numero = numero.trim();
+      if (complemento.trim()) enderecoData.complemento = complemento.trim();
+      if (bairro.trim()) enderecoData.bairro = bairro.trim();
+      if (cidade.trim()) enderecoData.cidade = cidade.trim();
+      if (estado.trim()) enderecoData.estado = estado.trim();
+      
+      if (Object.keys(enderecoData).length > 0) {
+        igrejaData.endereco = enderecoData;
+      }
 
       // Cria a igreja na coleção igrejas
       const igrejasRef = collection(db, "igrejas");
