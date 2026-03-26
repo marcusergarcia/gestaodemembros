@@ -45,8 +45,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (data.status === "REQUEST_DENIED") {
+      console.log("[v0] Geocode REQUEST_DENIED - error_message:", data.error_message);
       return NextResponse.json(
-        { error: "Erro de autenticação com Google Maps. Verifique se a API Key está correta e se a Geocoding API está habilitada." },
+        { error: `Erro de autenticação com Google Maps: ${data.error_message || "Verifique se a API Key está correta e se a Geocoding API está habilitada."}` },
         { status: 500 }
       );
     }
