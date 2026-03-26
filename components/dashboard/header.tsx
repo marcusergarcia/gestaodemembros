@@ -37,14 +37,16 @@ export function Header() {
             const name = pathNames[segment] || segment;
 
             return (
-              <BreadcrumbItem key={segment}>
+              <span key={segment} className="contents">
                 {index > 0 && <BreadcrumbSeparator />}
-                {isLast ? (
-                  <BreadcrumbPage>{name}</BreadcrumbPage>
-                ) : (
-                  <BreadcrumbLink href={href}>{name}</BreadcrumbLink>
-                )}
-              </BreadcrumbItem>
+                <BreadcrumbItem>
+                  {isLast ? (
+                    <BreadcrumbPage>{name}</BreadcrumbPage>
+                  ) : (
+                    <BreadcrumbLink href={href}>{name}</BreadcrumbLink>
+                  )}
+                </BreadcrumbItem>
+              </span>
             );
           })}
         </BreadcrumbList>

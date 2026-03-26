@@ -175,13 +175,24 @@ export async function getUnidadesAcessiveis(
 export async function carregarTodasUnidades(igrejaId: string): Promise<Unidade[]> {
   if (!db) throw new Error("Firebase não configurado");
   
+  console.log("[v0] carregarTodasUnidades - igrejaId:", igrejaId);
   const unidadesRef = getUnidadesCollection(igrejaId);
+  console.log("[v0] carregarTodasUnidades - path:", `igrejas/${igrejaId}/unidades`);
   const snapshot = await getDocs(unidadesRef);
+  console.log("[v0] carregarTodasUnidades - docs encontrados:", snapshot.docs.length);
   
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  })) as Unidade[];
+  const unidades = snapshot.docs.map(doc => {
+    const data = doc.data();
+    console.log("[v0] carregarTodasUnidades - doc:", doc.id, data);
+    return {
+      id: doc.id,
+      nome: data.nome || "Sem nome",
+      tipo: data.tipo || "sede",
+      ...data
+    } as Unidade;
+  });
+  
+  return unidades;
 }
 
 
