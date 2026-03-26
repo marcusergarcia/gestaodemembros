@@ -51,7 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Carrega as unidades acessíveis quando o usuário é carregado
   useEffect(() => {
     async function carregarUnidades() {
-      if (!usuario || !igrejaId) {
+      // Se não tem usuário ou igreja, limpa tudo
+      if (!usuario || !igrejaId || igrejaId === "") {
         setUnidadesAcessiveis([]);
         setTodasUnidades([]);
         setUnidadeAtual(null);

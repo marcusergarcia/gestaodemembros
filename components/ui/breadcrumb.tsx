@@ -62,8 +62,7 @@ function BreadcrumbPage({ className, ...props }: React.ComponentProps<'span'>) {
   )
 }
 
-// IMPORTANTE: BreadcrumbSeparator deve ser um <span>, não <li>
-// para evitar erro de hydration quando usado dentro de BreadcrumbItem
+// BreadcrumbSeparator usa <span> para evitar erro de hydration (li dentro de li)
 function BreadcrumbSeparator({
   children,
   className,

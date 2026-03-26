@@ -14,14 +14,19 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, usuario, loading, isConfigured, unidadesAcessiveis } = useAuth();
+  const { user, usuario, igrejaId, loading, isConfigured } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && isConfigured && !user) {
-      router.push("/login");
+    if (!loading && isConfigured) {
+      if (!user) {
+        router.push("/login");
+      } else if (usuario && !igrejaId) {
+        // Usuário logado mas sem igreja - redireciona para setup
+        router.push("/setup-igreja");
+      }
     }
-  }, [user, loading, isConfigured, router]);
+  }, [user, usuario, igrejaId, loading, isConfigured, router]);
 
   // Show setup page if Firebase is not configured
   if (!isConfigured) {
@@ -45,15 +50,14 @@ export default function DashboardLayout({
     return null;
   }
 
-  // Se usuário logado mas sem unidades acessíveis, mostra mensagem
-  if (usuario && unidadesAcessiveis.length === 0) {
+  // Se usuário logado mas sem igreja, mostra loading enquanto redireciona
+  if (usuario && !igrejaId) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4 text-center max-w-md p-6">
-          <h2 className="text-xl font-semibold">Configuração Pendente</h2>
-          <p className="text-muted-foreground">
-            Seu usuário ainda não está vinculado a nenhuma unidade. 
-            Entre em contato com o administrador do sistema para configurar seu acesso.
+        <div className="flex flex-col items-center gap-4">
+          <Spinner className="h-8 w-8 text-primary" />
+          <p className="text-sm text-muted-foreground">
+            Redirecionando para configuração...
           </p>
         </div>
       </div>
