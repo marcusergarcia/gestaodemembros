@@ -61,6 +61,9 @@ import {
   Phone,
   MapPin,
   Building2,
+  Link2,
+  Copy,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -197,14 +200,44 @@ export default function MembrosPage() {
             {temAcessoTotal() ? "em todas as unidades" : `em ${unidadesAcessiveis.length} unidade(s)`}
           </p>
         </div>
-        {canEdit && (
-          <Button asChild>
-            <Link href="/membros/novo">
-              <UserPlus className="mr-2 h-4 w-4" />
-              Novo Membro
-            </Link>
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {canEdit && igrejaId && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Link2 className="mr-2 h-4 w-4" />
+                  Link de Cadastro
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => {
+                  const url = `${window.location.origin}/cadastro/membro?igreja=${igrejaId}`;
+                  navigator.clipboard.writeText(url);
+                  toast.success("Link copiado!");
+                }}>
+                  <Copy className="mr-2 h-4 w-4" />
+                  Copiar Link
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  const url = `${window.location.origin}/cadastro/membro?igreja=${igrejaId}`;
+                  const text = `Cadastre-se como membro da nossa igreja: ${url}`;
+                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+                }}>
+                  <Share2 className="mr-2 h-4 w-4" />
+                  Compartilhar no WhatsApp
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          {canEdit && (
+            <Button asChild>
+              <Link href="/membros/novo">
+                <UserPlus className="mr-2 h-4 w-4" />
+                Novo Membro
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}

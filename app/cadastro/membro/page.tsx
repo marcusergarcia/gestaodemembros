@@ -1,0 +1,517 @@
+"use client";
+
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { addDoc, Timestamp, collection, doc, getDoc, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
+import { Church, User, CheckCircle2, MapPin } from "lucide-react";
+import { TIPOS_MEMBRO, TipoMembro } from "@/lib/types";
+
+interface UnidadeSimples {
+  id: string;
+  nome: string;
+}
+
+interface IgrejaInfo {
+  nome: string;
+  convencao?: string;
+}
+
+function CadastroMembroContent() {
+  const searchParams = useSearchParams();
+  const igrejaId = searchParams.get("igreja");
+  const unidadeIdParam = searchParams.get("unidade");
+
+  const [loading, setLoading] = useState(false);
+  const [loadingIgreja, setLoadingIgreja] = useState(true);
+  const [success, setSuccess] = useState(false);
+  const [igrejaInfo, setIgrejaInfo] = useState<IgrejaInfo | null>(null);
+  const [unidades, setUnidades] = useState<UnidadeSimples[]>([]);
+
+  // Dados do membro
+  const [nome, setNome] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const [email, setEmail] = useState("");
+  const [dataNascimento, setDataNascimento] = useState("");
+  const [tipo, setTipo] = useState<TipoMembro>("congregado");
+  const [unidadeId, setUnidadeId] = useState(unidadeIdParam || "");
+
+  // Endereço
+  const [cep, setCep] = useState("");
+  const [logradouro, setLogradouro] = useState("");
+  const [numero, setNumero] = useState("");
+  const [complemento, setComplemento] = useState("");
+  const [bairro, setBairro] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [estado, setEstado] = useState("");
+
+  // Outros
+  const [batizado, setBatizado] = useState(false);
+  const [observacoes, setObservacoes] = useState("");
+
+  // Carrega informações da igreja
+  useEffect(() => {
+    async function loadIgreja() {
+      if (!igrejaId || !db) {
+        setLoadingIgreja(false);
+        return;
+      }
+
+      try {
+        // Busca dados da igreja
+        const igrejaRef = doc(db, "igrejas", igrejaId);
+        const igrejaSnap = await getDoc(igrejaRef);
+        
+        if (igrejaSnap.exists()) {
+          const data = igrejaSnap.data();
+          setIgrejaInfo({
+            nome: data.nome || "Igreja",
+            convencao: data.convencao,
+          });
+        }
+
+        // Busca unidades
+        const unidadesRef = collection(db, "igrejas", igrejaId, "unidades");
+        const unidadesSnap = await getDocs(unidadesRef);
+        
+        const unidadesList: UnidadeSimples[] = [];
+        unidadesSnap.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data.ativa !== false) {
+            unidadesList.push({
+              id: docSnap.id,
+              nome: data.nome || "Sem nome",
+            });
+          }
+        });
+        
+        setUnidades(unidadesList);
+        
+        // Se só tem uma unidade, seleciona automaticamente
+        if (unidadesList.length === 1) {
+          setUnidadeId(unidadesList[0].id);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar igreja:", error);
+      } finally {
+        setLoadingIgreja(false);
+      }
+    }
+
+    loadIgreja();
+  }, [igrejaId]);
+
+  const formatPhoneInput = (value: string) => {
+    return value.replace(/\D/g, "").slice(0, 11);
+  };
+
+  const formatCepInput = (value: string) => {
+    return value.replace(/\D/g, "").slice(0, 8);
+  };
+
+  const buscarCep = async () => {
+    if (cep.length !== 8) {
+      toast.error("CEP deve ter 8 dígitos");
+      return;
+    }
+
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const data = await response.json();
+
+      if (data.erro) {
+        toast.error("CEP não encontrado");
+        return;
+      }
+
+      setLogradouro(data.logradouro || "");
+      setBairro(data.bairro || "");
+      setCidade(data.localidade || "");
+      setEstado(data.uf || "");
+      toast.success("Endereço encontrado!");
+    } catch {
+      toast.error("Erro ao buscar CEP");
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!nome.trim()) {
+      toast.error("Nome é obrigatório");
+      return;
+    }
+    if (!telefone.trim()) {
+      toast.error("Telefone é obrigatório");
+      return;
+    }
+    if (!unidadeId) {
+      toast.error("Selecione uma unidade");
+      return;
+    }
+    if (!igrejaId || !db) {
+      toast.error("Link inválido");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const membrosRef = collection(db, "igrejas", igrejaId, "unidades", unidadeId, "membros");
+      
+      const membroData: Record<string, unknown> = {
+        nome: nome.trim(),
+        telefone: telefone.replace(/\D/g, ""),
+        tipo,
+        batizado,
+        ativo: true,
+        dataCadastro: Timestamp.now(),
+        criadoPor: "formulario_publico",
+        unidadeId,
+        igrejaId,
+      };
+
+      if (email.trim()) {
+        membroData.email = email.trim().toLowerCase();
+      }
+      if (dataNascimento) {
+        membroData.dataNascimento = Timestamp.fromDate(new Date(dataNascimento));
+      }
+      if (observacoes.trim()) {
+        membroData.observacoes = observacoes.trim();
+      }
+
+      // Endereço
+      if (cep || logradouro || cidade) {
+        membroData.cep = cep;
+        membroData.logradouro = logradouro;
+        membroData.numero = numero;
+        membroData.complemento = complemento;
+        membroData.bairro = bairro;
+        membroData.cidade = cidade;
+        membroData.estado = estado;
+      }
+
+      await addDoc(membrosRef, membroData);
+      setSuccess(true);
+    } catch (error) {
+      console.error("Erro ao cadastrar:", error);
+      toast.error("Erro ao enviar cadastro. Tente novamente.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!igrejaId) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <Church className="mx-auto h-12 w-12 text-muted-foreground" />
+            <h1 className="mt-4 text-xl font-semibold">Link Inválido</h1>
+            <p className="mt-2 text-muted-foreground">
+              Este link de cadastro não é válido. Solicite um novo link à igreja.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (loadingIgreja) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/30">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="mt-4 text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (success) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <div className="mx-auto w-fit rounded-full bg-green-100 p-3">
+              <CheckCircle2 className="h-12 w-12 text-green-600" />
+            </div>
+            <h1 className="mt-4 text-xl font-semibold">Cadastro Realizado!</h1>
+            <p className="mt-2 text-muted-foreground">
+              Seu cadastro foi recebido com sucesso. Seja bem-vindo à nossa igreja!
+            </p>
+            {igrejaInfo && (
+              <p className="mt-4 font-medium text-primary">
+                {igrejaInfo.nome}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-muted/30 py-8 px-4">
+      <div className="mx-auto max-w-lg space-y-6">
+        {/* Header */}
+        <div className="text-center">
+          <div className="mx-auto w-fit rounded-full bg-primary/10 p-3">
+            <Church className="h-8 w-8 text-primary" />
+          </div>
+          <h1 className="mt-4 text-2xl font-bold">Cadastro de Membro</h1>
+          {igrejaInfo && (
+            <p className="mt-1 text-muted-foreground">{igrejaInfo.nome}</p>
+          )}
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Dados Pessoais */}
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Dados Pessoais
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="nome">Nome Completo *</Label>
+                <Input
+                  id="nome"
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  placeholder="Seu nome completo"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="telefone">WhatsApp *</Label>
+                  <Input
+                    id="telefone"
+                    value={telefone}
+                    onChange={(e) => setTelefone(formatPhoneInput(e.target.value))}
+                    placeholder="11999999999"
+                    maxLength={11}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="seu@email.com"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dataNascimento">Data de Nascimento</Label>
+                <Input
+                  id="dataNascimento"
+                  type="date"
+                  value={dataNascimento}
+                  onChange={(e) => setDataNascimento(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="tipo">Tipo de Membro</Label>
+                  <Select value={tipo} onValueChange={(v) => setTipo(v as TipoMembro)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(TIPOS_MEMBRO).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {unidades.length > 1 && (
+                  <div className="space-y-2">
+                    <Label htmlFor="unidade">Unidade *</Label>
+                    <Select value={unidadeId} onValueChange={setUnidadeId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {unidades.map((unidade) => (
+                          <SelectItem key={unidade.id} value={unidade.id}>
+                            {unidade.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="batizado"
+                  checked={batizado}
+                  onCheckedChange={(checked) => setBatizado(!!checked)}
+                />
+                <Label htmlFor="batizado">Já sou batizado nas águas</Label>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Endereço */}
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Endereço
+              </CardTitle>
+              <CardDescription>Opcional, mas ajuda nos grupos por proximidade</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <div className="flex-1 space-y-2">
+                  <Label htmlFor="cep">CEP</Label>
+                  <Input
+                    id="cep"
+                    value={cep}
+                    onChange={(e) => setCep(formatCepInput(e.target.value))}
+                    placeholder="00000000"
+                    maxLength={8}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button type="button" variant="outline" onClick={buscarCep}>
+                    Buscar
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="logradouro">Logradouro</Label>
+                <Input
+                  id="logradouro"
+                  value={logradouro}
+                  onChange={(e) => setLogradouro(e.target.value)}
+                  placeholder="Rua, Avenida..."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="numero">Número</Label>
+                  <Input
+                    id="numero"
+                    value={numero}
+                    onChange={(e) => setNumero(e.target.value)}
+                    placeholder="123"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="complemento">Complemento</Label>
+                  <Input
+                    id="complemento"
+                    value={complemento}
+                    onChange={(e) => setComplemento(e.target.value)}
+                    placeholder="Apto, Bloco..."
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bairro">Bairro</Label>
+                <Input
+                  id="bairro"
+                  value={bairro}
+                  onChange={(e) => setBairro(e.target.value)}
+                  placeholder="Bairro"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="cidade">Cidade</Label>
+                  <Input
+                    id="cidade"
+                    value={cidade}
+                    onChange={(e) => setCidade(e.target.value)}
+                    placeholder="Cidade"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="estado">Estado</Label>
+                  <Input
+                    id="estado"
+                    value={estado}
+                    onChange={(e) => setEstado(e.target.value)}
+                    placeholder="SP"
+                    maxLength={2}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Observações */}
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg">Observações</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                placeholder="Alguma informação adicional?"
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                rows={3}
+              />
+            </CardContent>
+          </Card>
+
+          <Button type="submit" className="w-full" size="lg" disabled={loading}>
+            {loading ? "Enviando..." : "Enviar Cadastro"}
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default function CadastroMembroPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-muted/30">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="mt-4 text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    }>
+      <CadastroMembroContent />
+    </Suspense>
+  );
+}
