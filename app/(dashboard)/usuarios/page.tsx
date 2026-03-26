@@ -129,10 +129,12 @@ export default function UsuariosPage() {
     }
   };
 
-  const filteredUsuarios = usuarios.filter(usr =>
-    usr.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    usr.telefone.includes(searchTerm)
-  );
+  const filteredUsuarios = usuarios.filter(usr => {
+    const nome = usr.nome || "";
+    const telefone = usr.telefone || "";
+    const termo = searchTerm.toLowerCase();
+    return nome.toLowerCase().includes(termo) || telefone.includes(searchTerm);
+  });
 
   const isAdmin = currentUser?.nivelAcesso === "admin" || currentUser?.nivelAcesso === "full";
 
@@ -237,18 +239,18 @@ export default function UsuariosPage() {
               <TableBody>
                 {filteredUsuarios.map(usr => (
                   <TableRow key={usr.uid}>
-                    <TableCell className="font-medium">{usr.nome}</TableCell>
-                    <TableCell>{usr.telefone}</TableCell>
-                    <TableCell>{getUnidadeNome(usr.unidadeId)}</TableCell>
+                    <TableCell className="font-medium">{usr.nome || "Sem nome"}</TableCell>
+                    <TableCell>{usr.telefone || "-"}</TableCell>
+                    <TableCell>{usr.unidadeId ? getUnidadeNome(usr.unidadeId) : "Não definida"}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="gap-1">
-                        {getNivelIcon(usr.nivelAcesso)}
-                        {NIVEIS_ACESSO[usr.nivelAcesso]}
+                        {getNivelIcon(usr.nivelAcesso || "usuario")}
+                        {NIVEIS_ACESSO[usr.nivelAcesso || "usuario"] || "Usuário"}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={usr.ativo ? "default" : "secondary"}>
-                        {usr.ativo ? "Ativo" : "Inativo"}
+                      <Badge variant={usr.ativo !== false ? "default" : "secondary"}>
+                        {usr.ativo !== false ? "Ativo" : "Inativo"}
                       </Badge>
                     </TableCell>
                     <TableCell>
