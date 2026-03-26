@@ -184,36 +184,4 @@ export async function carregarTodasUnidades(igrejaId: string): Promise<Unidade[]
   })) as Unidade[];
 }
 
-// ============================================
-// FUNÇÕES DE COMPATIBILIDADE (LEGADO)
-// Para manter compatibilidade durante a migração
-// ============================================
 
-/**
- * @deprecated Use getMembrosCollection ou getUnidadesCollection
- * Mantido para compatibilidade com código legado
- */
-export function getIgrejaCollection(igrejaId: string, collectionName: string) {
-  if (!db) throw new Error("Firebase não configurado");
-  if (!igrejaId) throw new Error("igrejaId é obrigatório");
-  
-  // Para unidades, retorna a coleção de unidades
-  if (collectionName === "unidades") {
-    return getUnidadesCollection(igrejaId);
-  }
-  
-  // Para usuarios, retorna a coleção de usuarios
-  if (collectionName === "usuarios") {
-    return getUsuariosCollection(igrejaId);
-  }
-  
-  // Para outras coleções, assume que está na raiz da igreja
-  return collection(db, COLLECTIONS.IGREJAS, igrejaId, collectionName);
-}
-
-/**
- * @deprecated Use getIgrejaDoc
- */
-export function getIgrejaDoc2(igrejaId: string) {
-  return getIgrejaDoc(igrejaId);
-}

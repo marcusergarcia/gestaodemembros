@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getDoc } from "firebase/firestore";
-import { getIgrejaDoc } from "@/lib/firestore";
+import { getDoc, getDocs, query } from "firebase/firestore";
+import { getMembroDoc, getMembrosCollection } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { MembroForm } from "@/components/membros/membro-form";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,26 +13,31 @@ import { Membro } from "@/lib/types";
 export default function EditarMembroPage() {
   const params = useParams();
   const router = useRouter();
-  const { igrejaId } = useAuth();
+  const { igrejaId, unidadesAcessiveis } = useAuth();
   const [membro, setMembro] = useState<Membro | null>(null);
+  const [membroUnidadeId, setMembroUnidadeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!igrejaId) {
+    if (!igrejaId || unidadesAcessiveis.length === 0) {
       setLoading(false);
       return;
     }
 
     async function loadMembro() {
       try {
-        const docRef = getIgrejaDoc(igrejaId, "membros", params.id as string);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          setMembro({ id: docSnap.id, ...docSnap.data() } as Membro);
-        } else {
-          router.push("/membros");
+        // Search for member in all accessible units
+        for (const unidadeId of unidadesAcessiveis) {
+          const docRef = getMembroDoc(igrejaId, unidadeId, params.id as string);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setMembro({ id: docSnap.id, unidadeId, ...docSnap.data() } as Membro);
+            setMembroUnidadeId(unidadeId);
+            return;
+          }
         }
+        // Not found in any unit
+        router.push("/membros");
       } catch (error) {
         console.error("Erro ao carregar membro:", error);
       } finally {
@@ -41,7 +46,7 @@ export default function EditarMembroPage() {
     }
 
     loadMembro();
-  }, [params.id, router, igrejaId]);
+  }, [params.id, router, igrejaId, unidadesAcessiveis]);
 
   if (loading) {
     return (
@@ -71,7 +76,7 @@ export default function EditarMembroPage() {
         </p>
       </div>
 
-      <MembroForm membro={membro} />
+      <MembroForm membro={membro} unidadeIdParam={membroUnidadeId || undefined} />
     </div>
   );
 }

@@ -9,8 +9,11 @@ import {
   onSnapshot,
   getDoc,
   updateDoc,
+  getDocs,
+  doc,
 } from "firebase/firestore";
-import { getIgrejaCollection, getIgrejaDoc } from "@/lib/firestore";
+import { getGruposCollection, getMembrosCollection, getMembroDoc, COLLECTIONS } from "@/lib/firestore";
+import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,7 +60,7 @@ interface GrupoComDetalhes extends Grupo {
 }
 
 export default function GruposPage() {
-  const { igrejaId } = useAuth();
+  const { igrejaId, unidadesAcessiveis, unidadeId } = useAuth();
   const [grupos, setGrupos] = useState<GrupoComDetalhes[]>([]);
   const [loading, setLoading] = useState(true);
   const [grupoToDelete, setGrupoToDelete] = useState<GrupoComDetalhes | null>(
@@ -65,57 +68,48 @@ export default function GruposPage() {
   );
 
   useEffect(() => {
-    if (!igrejaId) {
+    if (!igrejaId || !unidadeId || unidadesAcessiveis.length === 0) {
       setLoading(false);
       return;
     }
 
-    const gruposRef = getIgrejaCollection(igrejaId, "grupos");
-    const q = query(
-      gruposRef,
-      where("ativo", "==", true),
-      orderBy("dataCriacao", "desc")
-    );
-
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      const gruposData: GrupoComDetalhes[] = [];
-
-      for (const docSnap of snapshot.docs) {
-        const grupo = { id: docSnap.id, ...docSnap.data() } as GrupoComDetalhes;
-
-        // Fetch leader name
-        if (grupo.liderMembroId) {
-          const liderDoc = await getDoc(getIgrejaDoc(igrejaId, "membros", grupo.liderMembroId));
-          if (liderDoc.exists()) {
-            grupo.liderNome = liderDoc.data().nome;
+    const loadGrupos = async () => {
+      try {
+        const gruposData: GrupoComDetalhes[] = [];
+        
+        for (const uId of unidadesAcessiveis) {
+          const gruposRef = getGruposCollection(igrejaId, uId);
+          const q = query(
+            gruposRef,
+            where("ativo", "==", true),
+            orderBy("dataCriacao", "desc")
+          );
+          
+          const snapshot = await getDocs(q);
+          
+          for (const docSnap of snapshot.docs) {
+            const grupo = { id: docSnap.id, unidadeId: uId, ...docSnap.data() } as GrupoComDetalhes;
+            gruposData.push(grupo);
           }
         }
 
-        // Fetch first few member names
-        const memberNames: string[] = [];
-        for (const memberId of grupo.membrosIds.slice(0, 3)) {
-          const memberDoc = await getDoc(getIgrejaDoc(igrejaId, "membros", memberId));
-          if (memberDoc.exists()) {
-            memberNames.push(memberDoc.data().nome);
-          }
-        }
-        grupo.membrosNomes = memberNames;
-
-        gruposData.push(grupo);
+        setGrupos(gruposData);
+      } catch (error) {
+        console.error("Erro ao carregar grupos:", error);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      setGrupos(gruposData);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [igrejaId]);
+    loadGrupos();
+  }, [igrejaId, unidadeId, unidadesAcessiveis]);
 
   const handleDelete = async () => {
-    if (!grupoToDelete || !igrejaId) return;
+    if (!grupoToDelete || !igrejaId || !grupoToDelete.unidadeId) return;
 
     try {
-      await updateDoc(getIgrejaDoc(igrejaId, "grupos", grupoToDelete.id), {
+      const grupoRef = doc(db!, COLLECTIONS.IGREJAS, igrejaId, COLLECTIONS.UNIDADES, grupoToDelete.unidadeId, COLLECTIONS.GRUPOS, grupoToDelete.id);
+      await updateDoc(grupoRef, {
         ativo: false,
       });
       toast.success("Grupo excluído com sucesso");

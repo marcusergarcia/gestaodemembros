@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { query, onSnapshot, where, Timestamp } from "firebase/firestore";
-import { getIgrejaCollection, IGREJA_ID_FIELD } from "@/lib/firestore";
+import { query, onSnapshot, getDocs } from "firebase/firestore";
+import { getMembrosCollection, getAcompanhamentosCollection } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,7 +53,7 @@ interface MembrosStats {
 }
 
 export default function RelatoriosPage() {
-  const { igrejaId } = useAuth();
+  const { igrejaId, unidadesAcessiveis } = useAuth();
   const [acompanhamentos, setAcompanhamentos] = useState<Acompanhamento[]>([]);
   const [membrosStats, setMembrosStats] = useState<MembrosStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,51 +61,59 @@ export default function RelatoriosPage() {
   const [filtroTipo, setFiltroTipo] = useState<TipoAcompanhamento | "todos">("todos");
 
   useEffect(() => {
-    if (!igrejaId) {
+    if (!igrejaId || unidadesAcessiveis.length === 0) {
       setLoading(false);
       return;
     }
 
-    // Load acompanhamentos
-    const acompRef = getIgrejaCollection(igrejaId, "acompanhamentos");
-    const unsubAcomp = onSnapshot(query(acompRef), (snapshot) => {
-      const data: Acompanhamento[] = [];
-      snapshot.forEach((docSnap) => {
-        data.push({ id: docSnap.id, ...docSnap.data() } as Acompanhamento);
-      });
-      setAcompanhamentos(data);
-      setLoading(false);
-    });
-
-    // Load members stats - filtrar por igrejaID
-    const membrosRef = getIgrejaCollection(igrejaId, "membros");
-    const unsubMembros = onSnapshot(query(membrosRef, where(IGREJA_ID_FIELD, "==", igrejaId)), (snapshot) => {
-      const porTipo: Record<TipoMembro, number> = {
-        visitante: 0,
-        congregado: 0,
-        membro: 0,
-        obreiro: 0,
-        lider: 0,
-      };
-
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (data.tipo in porTipo) {
-          porTipo[data.tipo as TipoMembro]++;
+    const loadData = async () => {
+      try {
+        // Load acompanhamentos from all accessible units
+        const acompData: Acompanhamento[] = [];
+        for (const unidadeId of unidadesAcessiveis) {
+          const acompRef = getAcompanhamentosCollection(igrejaId, unidadeId);
+          const snapshot = await getDocs(query(acompRef));
+          snapshot.forEach((docSnap) => {
+            acompData.push({ id: docSnap.id, unidadeId, ...docSnap.data() } as Acompanhamento);
+          });
         }
-      });
+        setAcompanhamentos(acompData);
 
-      setMembrosStats({
-        total: snapshot.size,
-        porTipo,
-      });
-    });
+        // Load members stats from all accessible units
+        const porTipo: Record<TipoMembro, number> = {
+          visitante: 0,
+          congregado: 0,
+          membro: 0,
+          obreiro: 0,
+          lider: 0,
+        };
+        let totalMembros = 0;
 
-    return () => {
-      unsubAcomp();
-      unsubMembros();
+        for (const unidadeId of unidadesAcessiveis) {
+          const membrosRef = getMembrosCollection(igrejaId, unidadeId);
+          const snapshot = await getDocs(query(membrosRef));
+          totalMembros += snapshot.size;
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            if (data.tipo in porTipo) {
+              porTipo[data.tipo as TipoMembro]++;
+            }
+          });
+        }
+
+        setMembrosStats({
+          total: totalMembros,
+          porTipo,
+        });
+      } catch (error) {
+        console.error("Erro ao carregar dados:", error);
+      } finally {
+        setLoading(false);
+      }
     };
-  }, [igrejaId]);
+
+    loadData();
+  }, [igrejaId, unidadesAcessiveis]);
 
   // Filter acompanhamentos by period
   const dataInicio = useMemo(() => {

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { query, orderBy, onSnapshot, limit } from "firebase/firestore";
-import { getIgrejaCollection } from "@/lib/firestore";
+import { query, orderBy, getDocs, limit } from "firebase/firestore";
+import { getAcompanhamentosCollection } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,36 +49,48 @@ const ICONES_ACOMPANHAMENTO: Record<TipoAcompanhamento, React.ComponentType<{ cl
 };
 
 export default function AcompanhamentoPage() {
-  const { usuario, igrejaId } = useAuth();
+  const { usuario, igrejaId, unidadesAcessiveis } = useAuth();
   const [acompanhamentos, setAcompanhamentos] = useState<Acompanhamento[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterTipo, setFilterTipo] = useState<TipoAcompanhamento | "todos">("todos");
 
-  const canCreate = usuario?.nivelAcesso === "admin" || 
-                    usuario?.nivelAcesso === "lider" || 
-                    usuario?.nivelAcesso === "obreiro";
+  const canCreate = usuario?.nivelAcesso === "full" || 
+                    usuario?.nivelAcesso === "admin" || 
+                    usuario?.nivelAcesso === "user";
 
   useEffect(() => {
-    if (!igrejaId) {
+    if (!igrejaId || unidadesAcessiveis.length === 0) {
       setLoading(false);
       return;
     }
 
-    const acompRef = getIgrejaCollection(igrejaId, "acompanhamentos");
-    const q = query(acompRef, orderBy("data", "desc"), limit(100));
+    const loadAcompanhamentos = async () => {
+      try {
+        const data: Acompanhamento[] = [];
+        
+        for (const unidadeId of unidadesAcessiveis) {
+          const acompRef = getAcompanhamentosCollection(igrejaId, unidadeId);
+          const q = query(acompRef, orderBy("data", "desc"), limit(50));
+          const snapshot = await getDocs(q);
+          snapshot.forEach((docSnap) => {
+            data.push({ id: docSnap.id, unidadeId, ...docSnap.data() } as Acompanhamento);
+          });
+        }
+        
+        // Sort by date descending
+        data.sort((a, b) => b.data.toDate().getTime() - a.data.toDate().getTime());
+        
+        setAcompanhamentos(data);
+      } catch (error) {
+        console.error("Erro ao carregar acompanhamentos:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data: Acompanhamento[] = [];
-      snapshot.forEach((docSnap) => {
-        data.push({ id: docSnap.id, ...docSnap.data() } as Acompanhamento);
-      });
-      setAcompanhamentos(data);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [igrejaId]);
+    loadAcompanhamentos();
+  }, [igrejaId, unidadesAcessiveis]);
 
   const filteredAcompanhamentos = acompanhamentos.filter((acomp) => {
     const matchesSearch =

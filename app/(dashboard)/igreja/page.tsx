@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getDoc, setDoc, Timestamp } from "firebase/firestore";
-import { getIgrejaDoc2 } from "@/lib/firestore";
+import { getIgrejaDoc } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { IgrejaForm } from "@/components/igreja/igreja-form";
 import { IgrejaView } from "@/components/igreja/igreja-view";
@@ -23,7 +23,7 @@ export default function IgrejaPage() {
 
     const loadIgreja = async () => {
       try {
-        const igrejaDoc = await getDoc(getIgrejaDoc2(igrejaId));
+        const igrejaDoc = await getDoc(getIgrejaDoc(igrejaId));
         if (igrejaDoc.exists()) {
           setIgreja({ id: igrejaDoc.id, ...igrejaDoc.data() } as Igreja);
         }
@@ -48,7 +48,7 @@ export default function IgrejaPage() {
         atualizadoPor: usuario?.uid,
       };
 
-      await setDoc(getIgrejaDoc2(igrejaId), igrejaData);
+      await setDoc(getIgrejaDoc(igrejaId), igrejaData);
       setIgreja({ id: igrejaId, ...igrejaData } as Igreja);
       setEditing(false);
     } catch (error) {
@@ -72,7 +72,7 @@ export default function IgrejaPage() {
     );
   }
 
-  const isAdmin = usuario?.nivelAcesso === "admin";
+  const isAdmin = usuario?.nivelAcesso === "admin" || usuario?.nivelAcesso === "full";
   const showForm = editing || !igreja;
 
   return (

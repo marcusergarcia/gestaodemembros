@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
-import { query, onSnapshot, where } from "firebase/firestore";
-import { getIgrejaCollection, IGREJA_ID_FIELD } from "@/lib/firestore";
+import { query, getDocs } from "firebase/firestore";
+import { getMembrosCollection } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,35 +18,43 @@ import { ptBR } from "date-fns/locale";
 import { Membro, TIPOS_MEMBRO, CORES_TIPO } from "@/lib/types";
 
 export default function AniversariantesPage() {
-  const { igrejaId } = useAuth();
+  const { igrejaId, unidadesAcessiveis } = useAuth();
   const [membros, setMembros] = useState<Membro[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
 
   useEffect(() => {
-    if (!igrejaId) {
+    if (!igrejaId || unidadesAcessiveis.length === 0) {
       setLoading(false);
       return;
     }
 
-    const membrosRef = getIgrejaCollection(igrejaId, "membros");
-    const q = query(membrosRef, where(IGREJA_ID_FIELD, "==", igrejaId));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const membrosData: Membro[] = [];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (data.ativo && data.dataNascimento) {
-          membrosData.push({ id: docSnap.id, ...data } as Membro);
+    const loadMembros = async () => {
+      try {
+        const membrosData: Membro[] = [];
+        
+        for (const unidadeId of unidadesAcessiveis) {
+          const membrosRef = getMembrosCollection(igrejaId, unidadeId);
+          const snapshot = await getDocs(query(membrosRef));
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            if (data.dataNascimento) {
+              membrosData.push({ id: docSnap.id, unidadeId, ...data } as Membro);
+            }
+          });
         }
-      });
-      setMembros(membrosData);
-      setLoading(false);
-    });
+        
+        setMembros(membrosData);
+      } catch (error) {
+        console.error("Erro ao carregar membros:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    return () => unsubscribe();
-  }, [igrejaId]);
+    loadMembros();
+  }, [igrejaId, unidadesAcessiveis]);
 
   // Get birthdays for the selected month
   const aniversariantesDoMes = useMemo(() => {
