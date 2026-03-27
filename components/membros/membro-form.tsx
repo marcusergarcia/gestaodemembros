@@ -319,6 +319,14 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
     // Coordenadas são opcionais - o membro pode ser cadastrado sem geolocalização
     // A localização no mapa pode ser feita posteriormente se necessário
     
+    console.log("[v0] onSubmit chamado com data:", {
+      estadoCivil: data.estadoCivil,
+      conjugeEhMembro: data.conjugeEhMembro,
+      nomeConjuge: data.nomeConjuge,
+      conjugeIdSelecionado: data.conjugeIdSelecionado,
+      adicionarNovoConjuge: data.adicionarNovoConjuge,
+    });
+    
     if (!user || !igrejaId || !selectedUnidadeId) {
       toast.error("Você precisa estar logado e selecionar uma unidade");
       return;
@@ -326,8 +334,11 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
 
     // Validações do cônjuge
     const temConjugeAtual = data.estadoCivil === "casado" || data.estadoCivil === "amasiado";
+    console.log("[v0] temConjugeAtual:", temConjugeAtual);
+    
     if (temConjugeAtual) {
       if (data.conjugeEhMembro) {
+        console.log("[v0] cônjuge é membro - verificando seleção ou adicionar novo");
         // Se é membro, deve selecionar um existente ou adicionar novo
         if (!data.conjugeIdSelecionado && !data.adicionarNovoConjuge) {
           toast.error("Selecione o cônjuge na lista ou clique em adicionar novo");
@@ -345,13 +356,17 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
           }
         }
       } else {
+        console.log("[v0] cônjuge NÃO é membro - verificando nome:", data.nomeConjuge);
         // Se não é membro, só precisa do nome
         if (!data.nomeConjuge?.trim()) {
+          console.log("[v0] nome do cônjuge vazio - retornando erro");
           toast.error("Nome do cônjuge é obrigatório");
           return;
         }
       }
     }
+    
+    console.log("[v0] validações passaram, continuando...");
 
     setLoading(true);
     try {
