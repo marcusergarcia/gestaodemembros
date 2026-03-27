@@ -101,8 +101,10 @@ function CadastroMembroContent() {
         
         setUnidades(unidadesList);
         
-        // Se só tem uma unidade, seleciona automaticamente
-        if (unidadesList.length === 1) {
+        // Se já veio uma unidade no link, usa ela; senão, se só tem uma, seleciona automaticamente
+        if (unidadeIdParam && unidadesList.some(u => u.id === unidadeIdParam)) {
+          setUnidadeId(unidadeIdParam);
+        } else if (unidadesList.length === 1) {
           setUnidadeId(unidadesList[0].id);
         }
       } catch (error) {
@@ -352,7 +354,8 @@ function CadastroMembroContent() {
                   </Select>
                 </div>
 
-                {unidades.length > 1 && (
+                {/* Só mostra seleção de unidade se não veio no link E há mais de uma opção */}
+                {!unidadeIdParam && unidades.length > 1 && (
                   <div className="space-y-2">
                     <Label htmlFor="unidade">Unidade *</Label>
                     <Select value={unidadeId} onValueChange={setUnidadeId}>

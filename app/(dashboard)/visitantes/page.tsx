@@ -74,7 +74,7 @@ interface VisitanteComUnidade extends Visitante {
 }
 
 export default function VisitantesPage() {
-  const { igrejaId, unidadesAcessiveis, todasUnidades, nivelAcesso, temAcessoTotal } = useAuth();
+  const { igrejaId, unidadeId: unidadeAtualId, unidadesAcessiveis, todasUnidades, nivelAcesso, temAcessoTotal } = useAuth();
   const [visitantes, setVisitantes] = useState<VisitanteComUnidade[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -216,9 +216,9 @@ export default function VisitantesPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          {igrejaId && (
+          {igrejaId && unidadeAtualId && (
             <QRCodeModal
-              url={`${typeof window !== "undefined" ? window.location.origin : ""}/cadastro/visitante?igreja=${igrejaId}`}
+              url={`${typeof window !== "undefined" ? window.location.origin : ""}/cadastro/visitante?igreja=${igrejaId}&unidade=${unidadeAtualId}`}
               title="Cadastro de Visitante"
               description="Escaneie o QR Code ou compartilhe o link para visitantes se cadastrarem"
               triggerLabel="QR Code Visitante"
