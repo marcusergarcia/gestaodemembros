@@ -67,6 +67,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Visitante } from "@/lib/types";
+import { QRCodeModal } from "@/components/qr-code-modal";
 
 interface VisitanteComUnidade extends Visitante {
   unidadeId: string;
@@ -215,24 +216,14 @@ export default function VisitantesPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <Share2 className="mr-2 h-4 w-4" />
-                Link de Cadastro
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={copyPublicLink}>
-                <Copy className="mr-2 h-4 w-4" />
-                Copiar Link
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={sharePublicLink}>
-                <LinkIcon className="mr-2 h-4 w-4" />
-                Compartilhar no WhatsApp
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {igrejaId && (
+            <QRCodeModal
+              url={`${typeof window !== "undefined" ? window.location.origin : ""}/cadastro/visitante?igreja=${igrejaId}`}
+              title="Cadastro de Visitante"
+              description="Escaneie o QR Code ou compartilhe o link para visitantes se cadastrarem"
+              triggerLabel="QR Code Visitante"
+            />
+          )}
           {canEdit && (
             <Button asChild>
               <Link href="/visitantes/novo">
