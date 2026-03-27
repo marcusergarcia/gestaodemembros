@@ -2,6 +2,8 @@ import { Timestamp } from "firebase/firestore";
 
 export type TipoMembro = "visitante" | "congregado" | "membro" | "obreiro" | "lider";
 
+export type Sexo = "masculino" | "feminino";
+
 export type EstadoCivil = "solteiro" | "casado" | "amasiado" | "divorciado" | "viuvo";
 
 export type CargoMembro =
@@ -157,6 +159,7 @@ export interface Membro {
   nome: string;
   telefone: string;
   email?: string;
+  sexo?: Sexo;
   fotoUrl?: string;
   endereco: Endereco;
   coordenadas: Coordenadas;
@@ -209,6 +212,11 @@ export const TIPOS_MEMBRO: Record<TipoMembro, string> = {
   membro: "Membro",
   obreiro: "Obreiro",
   lider: "Líder",
+};
+
+export const SEXOS: Record<Sexo, string> = {
+  masculino: "Masculino",
+  feminino: "Feminino",
 };
 
 export const ESTADOS_CIVIS: Record<EstadoCivil, string> = {

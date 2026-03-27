@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Church, User, CheckCircle2, MapPin, Heart, Users } from "lucide-react";
-import { TIPOS_MEMBRO, TipoMembro, CARGOS_MEMBRO, CargoMembro, ESTADOS_CIVIS, EstadoCivil } from "@/lib/types";
+import { TIPOS_MEMBRO, TipoMembro, CARGOS_MEMBRO, CargoMembro, ESTADOS_CIVIS, EstadoCivil, SEXOS, Sexo, Membro } from "@/lib/types";
+import { Search, UserPlus } from "lucide-react";
 
 interface UnidadeSimples {
   id: string;
@@ -47,11 +48,16 @@ function CadastroMembroContent() {
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [email, setEmail] = useState("");
+  const [sexo, setSexo] = useState<Sexo | "">("");
   const [dataNascimento, setDataNascimento] = useState("");
   const [tipo, setTipo] = useState<TipoMembro>("congregado");
   const [cargo, setCargo] = useState<CargoMembro | "">("");
   const [cargoDescricao, setCargoDescricao] = useState("");
   const [unidadeId, setUnidadeId] = useState(unidadeIdParam || "");
+  
+  // Lista de membros para seleção de cônjuge
+  const [membrosLista, setMembrosLista] = useState<Pick<Membro, 'id' | 'nome' | 'telefone'>[]>([]);
+  const [loadingMembros, setLoadingMembros] = useState(false);
 
   // Endereço
   const [cep, setCep] = useState("");
@@ -70,12 +76,14 @@ function CadastroMembroContent() {
   const [estadoCivil, setEstadoCivil] = useState<EstadoCivil>("solteiro");
   const [nomeConjuge, setNomeConjuge] = useState("");
   const [conjugeEhMembro, setConjugeEhMembro] = useState(false);
-  const [cadastrarConjuge, setCadastrarConjuge] = useState(false);
+  const [conjugeIdSelecionado, setConjugeIdSelecionado] = useState<string>(""); // ID do cônjuge se já é membro
+  const [adicionarNovoConjuge, setAdicionarNovoConjuge] = useState(false); // Para adicionar cônjuge que não está na lista
   
-  // Dados do cônjuge (quando cadastrar junto)
+  // Dados do cônjuge (quando cadastrar novo)
   const [telefoneConjuge, setTelefoneConjuge] = useState("");
   const [emailConjuge, setEmailConjuge] = useState("");
   const [dataNascimentoConjuge, setDataNascimentoConjuge] = useState("");
+  const [sexoConjuge, setSexoConjuge] = useState<Sexo | "">("");
 
   // Outros
   const [batizado, setBatizado] = useState(false);
@@ -142,6 +150,41 @@ function CadastroMembroContent() {
 
     loadIgreja();
   }, [igrejaId]);
+
+  // Carrega membros quando usuário indica que cônjuge é membro
+  useEffect(() => {
+    async function loadMembros() {
+      if (!conjugeEhMembro || !igrejaId || !unidadeId || !db) return;
+      
+      setLoadingMembros(true);
+      try {
+        const membrosRef = collection(db, "igrejas", igrejaId, "unidades", unidadeId, "membros");
+        const membrosSnap = await getDocs(membrosRef);
+        
+        const lista: Pick<Membro, 'id' | 'nome' | 'telefone'>[] = [];
+        membrosSnap.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data.ativo !== false) {
+            lista.push({
+              id: docSnap.id,
+              nome: data.nome || "",
+              telefone: data.telefone || "",
+            });
+          }
+        });
+        
+        // Ordena por nome
+        lista.sort((a, b) => a.nome.localeCompare(b.nome));
+        setMembrosLista(lista);
+      } catch (error) {
+        console.error("Erro ao carregar membros:", error);
+      } finally {
+        setLoadingMembros(false);
+      }
+    }
+    
+    loadMembros();
+  }, [conjugeEhMembro, igrejaId, unidadeId, db]);
 
   const formatPhoneInput = (value: string) => {
     return value.replace(/\D/g, "").slice(0, 11);
@@ -238,13 +281,31 @@ function CadastroMembroContent() {
     }
     
     // Validações do cônjuge
-    if (temConjuge && !nomeConjuge.trim()) {
-      toast.error("Nome do cônjuge é obrigatório");
-      return;
-    }
-    if (cadastrarConjuge && !telefoneConjuge.trim()) {
-      toast.error("Telefone do cônjuge é obrigatório para cadastrá-lo");
-      return;
+    if (temConjuge) {
+      if (conjugeEhMembro) {
+        // Se é membro, deve selecionar um existente ou adicionar novo
+        if (!conjugeIdSelecionado && !adicionarNovoConjuge) {
+          toast.error("Selecione o cônjuge na lista ou clique em adicionar novo");
+          return;
+        }
+        // Se está adicionando novo, precisa dos dados
+        if (adicionarNovoConjuge) {
+          if (!nomeConjuge.trim()) {
+            toast.error("Nome do cônjuge é obrigatório");
+            return;
+          }
+          if (!telefoneConjuge.trim()) {
+            toast.error("Telefone do cônjuge é obrigatório");
+            return;
+          }
+        }
+      } else {
+        // Se não é membro, só precisa do nome
+        if (!nomeConjuge.trim()) {
+          toast.error("Nome do cônjuge é obrigatório");
+          return;
+        }
+      }
     }
 
     setLoading(true);
@@ -264,6 +325,9 @@ function CadastroMembroContent() {
       if (email.trim()) {
         membroData.email = email.trim().toLowerCase();
       }
+      if (sexo) {
+        membroData.sexo = sexo;
+      }
       if (dataNascimento) {
         membroData.dataNascimento = Timestamp.fromDate(new Date(dataNascimento));
       }
@@ -273,8 +337,15 @@ function CadastroMembroContent() {
 
       // Estado Civil e Cônjuge
       membroData.estadoCivil = estadoCivil;
-      if (temConjuge && nomeConjuge.trim()) {
-        membroData.nomeConjuge = nomeConjuge.trim();
+      if (temConjuge) {
+        // Se selecionou um cônjuge existente
+        if (conjugeEhMembro && conjugeIdSelecionado) {
+          const conjugeSelecionado = membrosLista.find(m => m.id === conjugeIdSelecionado);
+          membroData.nomeConjuge = conjugeSelecionado?.nome || "";
+          membroData.conjugeId = conjugeIdSelecionado;
+        } else if (nomeConjuge.trim()) {
+          membroData.nomeConjuge = nomeConjuge.trim();
+        }
       }
 
       // Cargo (para obreiro/líder)
@@ -312,8 +383,19 @@ function CadastroMembroContent() {
       // Primeiro cadastra o membro principal
       const membroPrincipalRef = await addDoc(membrosRef, membroData);
       
-      // Se for para cadastrar o cônjuge também
-      if (cadastrarConjuge && conjugeEhMembro && nomeConjuge.trim() && telefoneConjuge.trim()) {
+      const { updateDoc, doc } = await import("firebase/firestore");
+      
+      // Se selecionou um cônjuge existente, atualiza ambos os registros
+      if (temConjuge && conjugeEhMembro && conjugeIdSelecionado) {
+        // Atualiza o cônjuge existente para vincular ao novo membro
+        await updateDoc(doc(db, "igrejas", igrejaId, "unidades", unidadeId, "membros", conjugeIdSelecionado), {
+          conjugeId: membroPrincipalRef.id,
+          nomeConjuge: nome.trim(),
+        });
+      }
+      
+      // Se for para cadastrar um novo cônjuge (não está na lista)
+      if (temConjuge && conjugeEhMembro && adicionarNovoConjuge && nomeConjuge.trim() && telefoneConjuge.trim()) {
         const conjugeData: Record<string, unknown> = {
           nome: nomeConjuge.trim(),
           telefone: telefoneConjuge.replace(/\D/g, ""),
@@ -329,6 +411,9 @@ function CadastroMembroContent() {
         
         if (emailConjuge.trim()) {
           conjugeData.email = emailConjuge.trim().toLowerCase();
+        }
+        if (sexoConjuge) {
+          conjugeData.sexo = sexoConjuge;
         }
         if (dataNascimentoConjuge) {
           conjugeData.dataNascimento = Timestamp.fromDate(new Date(dataNascimentoConjuge));
@@ -354,7 +439,6 @@ function CadastroMembroContent() {
         const conjugeRef = await addDoc(membrosRef, conjugeData);
         
         // Atualiza o membro principal com o ID do cônjuge
-        const { updateDoc, doc } = await import("firebase/firestore");
         await updateDoc(doc(db, "igrejas", igrejaId, "unidades", unidadeId, "membros", membroPrincipalRef.id), {
           conjugeId: conjugeRef.id
         });
@@ -479,14 +563,32 @@ function CadastroMembroContent() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="dataNascimento">Data de Nascimento</Label>
-                <Input
-                  id="dataNascimento"
-                  type="date"
-                  value={dataNascimento}
-                  onChange={(e) => setDataNascimento(e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="sexo">Sexo *</Label>
+                  <Select value={sexo} onValueChange={(v) => setSexo(v as Sexo)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(SEXOS).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="dataNascimento">Data de Nascimento</Label>
+                  <Input
+                    id="dataNascimento"
+                    type="date"
+                    value={dataNascimento}
+                    onChange={(e) => setDataNascimento(e.target.value)}
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -596,93 +698,171 @@ function CadastroMembroContent() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="nomeConjuge">Nome do Cônjuge *</Label>
-                  <Input
-                    id="nomeConjuge"
-                    value={nomeConjuge}
-                    onChange={(e) => setNomeConjuge(e.target.value)}
-                    placeholder="Nome completo do cônjuge"
-                    required
-                  />
-                </div>
-
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="conjugeEhMembro"
                     checked={conjugeEhMembro}
                     onCheckedChange={(checked) => {
                       setConjugeEhMembro(!!checked);
-                      if (!checked) setCadastrarConjuge(false);
+                      if (!checked) {
+                        setConjugeIdSelecionado("");
+                        setAdicionarNovoConjuge(false);
+                      }
                     }}
                   />
                   <Label htmlFor="conjugeEhMembro">Meu cônjuge também é membro da igreja</Label>
                 </div>
 
-                {conjugeEhMembro && (
+                {conjugeEhMembro ? (
                   <div className="rounded-lg border bg-muted/50 p-4 space-y-4">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="cadastrarConjuge"
-                        checked={cadastrarConjuge}
-                        onCheckedChange={(checked) => setCadastrarConjuge(!!checked)}
-                      />
-                      <div>
-                        <Label htmlFor="cadastrarConjuge" className="cursor-pointer">
-                          Cadastrar meu cônjuge automaticamente
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Os dois serão cadastrados juntos e vinculados no sistema
-                        </p>
+                    {loadingMembros ? (
+                      <div className="flex items-center justify-center py-4">
+                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        <span className="ml-2 text-sm text-muted-foreground">Carregando membros...</span>
                       </div>
-                    </div>
+                    ) : (
+                      <>
+                        {!adicionarNovoConjuge ? (
+                          <>
+                            <div className="space-y-2">
+                              <Label htmlFor="conjugeSelecionado">Selecione seu cônjuge *</Label>
+                              <Select 
+                                value={conjugeIdSelecionado} 
+                                onValueChange={(v) => setConjugeIdSelecionado(v)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecione na lista" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {membrosLista.map((m) => (
+                                    <SelectItem key={m.id} value={m.id}>
+                                      {m.nome}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setAdicionarNovoConjuge(true);
+                                  setConjugeIdSelecionado("");
+                                }}
+                              >
+                                <UserPlus className="h-4 w-4 mr-2" />
+                                Não encontrei, adicionar novo
+                              </Button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <UserPlus className="h-4 w-4" />
+                                <span>Cadastrar novo cônjuge</span>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setAdicionarNovoConjuge(false);
+                                  setNomeConjuge("");
+                                  setTelefoneConjuge("");
+                                  setEmailConjuge("");
+                                  setDataNascimentoConjuge("");
+                                  setSexoConjuge("");
+                                }}
+                              >
+                                <Search className="h-4 w-4 mr-2" />
+                                Voltar para lista
+                              </Button>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <Label htmlFor="nomeConjuge">Nome do Cônjuge *</Label>
+                              <Input
+                                id="nomeConjuge"
+                                value={nomeConjuge}
+                                onChange={(e) => setNomeConjuge(e.target.value)}
+                                placeholder="Nome completo do cônjuge"
+                              />
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="telefoneConjuge">WhatsApp do Cônjuge *</Label>
+                                <Input
+                                  id="telefoneConjuge"
+                                  value={telefoneConjuge}
+                                  onChange={(e) => setTelefoneConjuge(formatPhoneInput(e.target.value))}
+                                  placeholder="11999999999"
+                                  maxLength={11}
+                                />
+                              </div>
 
-                    {cadastrarConjuge && (
-                      <div className="space-y-4 pt-2">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Users className="h-4 w-4" />
-                          <span>Dados adicionais do cônjuge</span>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="telefoneConjuge">WhatsApp do Cônjuge *</Label>
-                            <Input
-                              id="telefoneConjuge"
-                              value={telefoneConjuge}
-                              onChange={(e) => setTelefoneConjuge(formatPhoneInput(e.target.value))}
-                              placeholder="11999999999"
-                              maxLength={11}
-                            />
-                          </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="sexoConjuge">Sexo do Cônjuge *</Label>
+                                <Select value={sexoConjuge} onValueChange={(v) => setSexoConjuge(v as Sexo)}>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecione" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Object.entries(SEXOS).map(([value, label]) => (
+                                      <SelectItem key={value} value={value}>
+                                        {label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
 
-                          <div className="space-y-2">
-                            <Label htmlFor="emailConjuge">E-mail do Cônjuge</Label>
-                            <Input
-                              id="emailConjuge"
-                              type="email"
-                              value={emailConjuge}
-                              onChange={(e) => setEmailConjuge(e.target.value)}
-                              placeholder="email@exemplo.com"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="dataNascimentoConjuge">Data de Nascimento do Cônjuge</Label>
-                          <Input
-                            id="dataNascimentoConjuge"
-                            type="date"
-                            value={dataNascimentoConjuge}
-                            onChange={(e) => setDataNascimentoConjuge(e.target.value)}
-                          />
-                        </div>
-                        
-                        <p className="text-xs text-muted-foreground">
-                          O endereço será o mesmo informado acima para ambos.
-                        </p>
-                      </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="emailConjuge">E-mail do Cônjuge</Label>
+                                <Input
+                                  id="emailConjuge"
+                                  type="email"
+                                  value={emailConjuge}
+                                  onChange={(e) => setEmailConjuge(e.target.value)}
+                                  placeholder="email@exemplo.com"
+                                />
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <Label htmlFor="dataNascimentoConjuge">Data de Nascimento</Label>
+                                <Input
+                                  id="dataNascimentoConjuge"
+                                  type="date"
+                                  value={dataNascimentoConjuge}
+                                  onChange={(e) => setDataNascimentoConjuge(e.target.value)}
+                                />
+                              </div>
+                            </div>
+                            
+                            <p className="text-xs text-muted-foreground">
+                              O endereço será o mesmo informado abaixo para ambos.
+                            </p>
+                          </>
+                        )}
+                      </>
                     )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="nomeConjuge">Nome do Cônjuge *</Label>
+                    <Input
+                      id="nomeConjuge"
+                      value={nomeConjuge}
+                      onChange={(e) => setNomeConjuge(e.target.value)}
+                      placeholder="Nome completo do cônjuge"
+                      required
+                    />
                   </div>
                 )}
               </CardContent>
