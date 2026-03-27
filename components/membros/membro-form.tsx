@@ -81,6 +81,8 @@ const membroSchema = z.object({
   telefoneConjuge: z.string().optional(),
   emailConjuge: z.string().email("Email inválido").optional().or(z.literal("")),
   sexoConjuge: z.enum(["masculino", "feminino"]).nullable().optional(),
+  tipoConjuge: z.enum(["visitante", "congregado", "membro", "obreiro", "lider"]).optional(),
+  cargoConjuge: z.enum(["pastor", "evangelista", "presbitero", "diacono", "auxiliar_escala", "outro"]).nullable().optional(),
   dataNascimentoConjuge: z.date().optional(),
   // Campos para funções e departamentos
   temFuncaoIgreja: z.boolean().optional(),
@@ -160,6 +162,8 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
       telefoneConjuge: "",
       emailConjuge: "",
       sexoConjuge: undefined,
+      tipoConjuge: "membro",
+      cargoConjuge: undefined,
       dataNascimentoConjuge: undefined,
       temFuncaoIgreja: membro?.temFuncaoIgreja || false,
       funcoes: membro?.funcoes || [],
@@ -187,6 +191,8 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
   const watchConjugeEhMembro = form.watch("conjugeEhMembro");
   const watchConjugeIdSelecionado = form.watch("conjugeIdSelecionado");
   const watchAdicionarNovoConjuge = form.watch("adicionarNovoConjuge");
+  const watchTipoConjuge = form.watch("tipoConjuge");
+  const showCargoConjuge = watchTipoConjuge === "obreiro" || watchTipoConjuge === "lider";
   const watchTemFuncao = form.watch("temFuncaoIgreja");
   const watchEhLider = form.watch("ehLider");
   const watchFuncoes = form.watch("funcoes") || [];
@@ -428,6 +434,9 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
         
         // Se for para cadastrar um novo cônjuge (não está na lista)
         if (temConjugeAtual && data.conjugeEhMembro && data.adicionarNovoConjuge && data.nomeConjuge?.trim() && data.telefoneConjuge?.trim()) {
+          const tipoConjugeFinal = (data.tipoConjuge || "membro") as TipoMembro;
+          const showCargoConjugeFinal = tipoConjugeFinal === "obreiro" || tipoConjugeFinal === "lider";
+          
           const conjugeData = {
             nome: data.nomeConjuge.trim(),
             telefone: data.telefoneConjuge.replace(/\D/g, ""),
@@ -435,8 +444,8 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
             sexo: (data.sexoConjuge as Sexo) || null,
             fotoUrl: null,
             dataNascimento: data.dataNascimentoConjuge ? Timestamp.fromDate(data.dataNascimentoConjuge) : null,
-            tipo: data.tipo as TipoMembro,
-            cargo: null,
+            tipo: tipoConjugeFinal,
+            cargo: showCargoConjugeFinal ? (data.cargoConjuge as CargoMembro) : null,
             cargoDescricao: null,
             estadoCivil: data.estadoCivil as EstadoCivil,
             nomeConjuge: data.nome.trim(),
@@ -498,6 +507,9 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
         
         // Se for para cadastrar um novo cônjuge (não está na lista)
         if (temConjugeAtual && data.conjugeEhMembro && data.adicionarNovoConjuge && data.nomeConjuge?.trim() && data.telefoneConjuge?.trim()) {
+          const tipoConjugeFinalNovo = (data.tipoConjuge || "membro") as TipoMembro;
+          const showCargoConjugeFinalNovo = tipoConjugeFinalNovo === "obreiro" || tipoConjugeFinalNovo === "lider";
+          
           const conjugeData = {
             nome: data.nomeConjuge.trim(),
             telefone: data.telefoneConjuge.replace(/\D/g, ""),
@@ -505,8 +517,8 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
             sexo: (data.sexoConjuge as Sexo) || null,
             fotoUrl: null,
             dataNascimento: data.dataNascimentoConjuge ? Timestamp.fromDate(data.dataNascimentoConjuge) : null,
-            tipo: data.tipo as TipoMembro, // Mesmo tipo do membro principal
-            cargo: null,
+            tipo: tipoConjugeFinalNovo,
+            cargo: showCargoConjugeFinalNovo ? (data.cargoConjuge as CargoMembro) : null,
             cargoDescricao: null,
             estadoCivil: data.estadoCivil as EstadoCivil,
             nomeConjuge: data.nome.trim(), // O nome do membro principal é o cônjuge do cônjuge
@@ -559,15 +571,7 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
-          console.log("[v0] Erros de validação do formulário:", errors);
-          // Mostra o primeiro erro encontrado
-          const firstError = Object.entries(errors)[0];
-          if (firstError) {
-            const [field, error] = firstError;
-            toast.error(`Erro no campo "${field}": ${error?.message || "valor inválido"}`);
-          }
-        })} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {/* Photo */}
         <Card>
           <CardHeader>
@@ -837,6 +841,8 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
                                   form.setValue("telefoneConjuge", "");
                                   form.setValue("emailConjuge", "");
                                   form.setValue("sexoConjuge", undefined);
+                                  form.setValue("tipoConjuge", "membro");
+                                  form.setValue("cargoConjuge", undefined);
                                   form.setValue("dataNascimentoConjuge", undefined);
                                 }}
                               >
@@ -858,6 +864,60 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
                                 </FormItem>
                               )}
                             />
+
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <FormField
+                                control={form.control}
+                                name="tipoConjuge"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Tipo do Cônjuge *</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Selecione" />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        {(Object.keys(TIPOS_MEMBRO) as TipoMembro[]).map((t) => (
+                                          <SelectItem key={t} value={t}>
+                                            {TIPOS_MEMBRO[t]}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              {showCargoConjuge && (
+                                <FormField
+                                  control={form.control}
+                                  name="cargoConjuge"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Cargo do Cônjuge *</FormLabel>
+                                      <Select onValueChange={field.onChange} value={field.value || undefined}>
+                                        <FormControl>
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Selecione" />
+                                          </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                          {(Object.keys(CARGOS_MEMBRO) as CargoMembro[]).map((c) => (
+                                            <SelectItem key={c} value={c}>
+                                              {CARGOS_MEMBRO[c]}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              )}
+                            </div>
                             
                             <div className="grid gap-4 sm:grid-cols-2">
                               <FormField
