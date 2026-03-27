@@ -41,6 +41,7 @@ function CadastroMembroContent() {
   const [success, setSuccess] = useState(false);
   const [igrejaInfo, setIgrejaInfo] = useState<IgrejaInfo | null>(null);
   const [unidades, setUnidades] = useState<UnidadeSimples[]>([]);
+  const [unidadeAtualNome, setUnidadeAtualNome] = useState<string | null>(null);
 
   // Dados do membro
   const [nome, setNome] = useState("");
@@ -107,11 +108,16 @@ function CadastroMembroContent() {
         
         setUnidades(unidadesList);
         
-        // Se já veio uma unidade no link, usa ela; senão, se só tem uma, seleciona automaticamente
+        // Se já veio uma unidade no link, usa ela e busca o nome
         if (unidadeIdParam && unidadesList.some(u => u.id === unidadeIdParam)) {
           setUnidadeId(unidadeIdParam);
+          const unidadeEncontrada = unidadesList.find(u => u.id === unidadeIdParam);
+          if (unidadeEncontrada) {
+            setUnidadeAtualNome(unidadeEncontrada.nome);
+          }
         } else if (unidadesList.length === 1) {
           setUnidadeId(unidadesList[0].id);
+          setUnidadeAtualNome(unidadesList[0].nome);
         }
       } catch (error) {
         console.error("Erro ao carregar igreja:", error);
@@ -342,7 +348,9 @@ function CadastroMembroContent() {
             <Church className="h-8 w-8 text-primary" />
           </div>
           <h1 className="mt-4 text-2xl font-bold">Cadastro de Membro</h1>
-          {igrejaInfo && (
+          {unidadeAtualNome ? (
+            <p className="mt-1 text-muted-foreground">{unidadeAtualNome}</p>
+          ) : igrejaInfo && (
             <p className="mt-1 text-muted-foreground">{igrejaInfo.nome}</p>
           )}
         </div>
