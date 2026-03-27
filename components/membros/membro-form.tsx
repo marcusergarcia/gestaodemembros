@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { addDoc, updateDoc, Timestamp } from "firebase/firestore";
+import { addDoc, updateDoc, Timestamp, getDocs } from "firebase/firestore";
 import { getMembrosCollection, getMembroDoc } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
-import { Search, MapPin, CalendarIcon } from "lucide-react";
+import { Search, MapPin, CalendarIcon, UserPlus } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
@@ -47,12 +47,14 @@ import {
   Departamento,
   FuncaoIgreja,
   EstadoCivil,
+  Sexo,
   TIPOS_MEMBRO,
   CARGOS_MEMBRO,
   DEPARTAMENTOS,
   FUNCOES_IGREJA,
   TIPOS_UNIDADE,
   ESTADOS_CIVIS,
+  SEXOS,
 } from "@/lib/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -62,6 +64,7 @@ const membroSchema = z.object({
   nome: z.string().min(3, "Nome deve ter pelo menos 3 caracteres"),
   telefone: z.string().min(10, "Telefone inválido"),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
+  sexo: z.enum(["masculino", "feminino"]).optional(),
   dataNascimento: z.date().optional(),
   tipo: z.enum(["visitante", "congregado", "membro", "obreiro", "lider"]),
   cargo: z
@@ -72,9 +75,11 @@ const membroSchema = z.object({
   estadoCivil: z.enum(["solteiro", "casado", "amasiado", "divorciado", "viuvo"]).optional(),
   nomeConjuge: z.string().optional(),
   conjugeEhMembro: z.boolean().optional(),
-  cadastrarConjuge: z.boolean().optional(),
+  conjugeIdSelecionado: z.string().optional(),
+  adicionarNovoConjuge: z.boolean().optional(),
   telefoneConjuge: z.string().optional(),
   emailConjuge: z.string().email("Email inválido").optional().or(z.literal("")),
+  sexoConjuge: z.enum(["masculino", "feminino"]).optional(),
   dataNascimentoConjuge: z.date().optional(),
   // Campos para funções e departamentos
   temFuncaoIgreja: z.boolean().optional(),
@@ -130,22 +135,29 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
   );
   const [fotoBase64, setFotoBase64] = useState<string | null>(membro?.fotoUrl || null);
 
+  // Lista de membros para seleção de cônjuge
+  const [membrosLista, setMembrosLista] = useState<Pick<Membro, 'id' | 'nome' | 'telefone'>[]>([]);
+  const [loadingMembros, setLoadingMembros] = useState(false);
+
   const form = useForm<MembroFormData>({
     resolver: zodResolver(membroSchema),
     defaultValues: {
       nome: membro?.nome || "",
       telefone: membro?.telefone || "",
       email: membro?.email || "",
+      sexo: membro?.sexo || undefined,
       dataNascimento: membro?.dataNascimento?.toDate(),
       tipo: membro?.tipo || "visitante",
       cargo: membro?.cargo,
       cargoDescricao: membro?.cargoDescricao || "",
       estadoCivil: membro?.estadoCivil || "solteiro",
       nomeConjuge: membro?.nomeConjuge || "",
-      conjugeEhMembro: false,
-      cadastrarConjuge: false,
+      conjugeEhMembro: !!membro?.conjugeId,
+      conjugeIdSelecionado: membro?.conjugeId || "",
+      adicionarNovoConjuge: false,
       telefoneConjuge: "",
       emailConjuge: "",
+      sexoConjuge: undefined,
       dataNascimentoConjuge: undefined,
       temFuncaoIgreja: membro?.temFuncaoIgreja || false,
       funcoes: membro?.funcoes || [],
@@ -171,11 +183,48 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
   const watchEstadoCivil = form.watch("estadoCivil");
   const temConjuge = watchEstadoCivil === "casado" || watchEstadoCivil === "amasiado";
   const watchConjugeEhMembro = form.watch("conjugeEhMembro");
-  const watchCadastrarConjuge = form.watch("cadastrarConjuge");
+  const watchConjugeIdSelecionado = form.watch("conjugeIdSelecionado");
+  const watchAdicionarNovoConjuge = form.watch("adicionarNovoConjuge");
   const watchTemFuncao = form.watch("temFuncaoIgreja");
   const watchEhLider = form.watch("ehLider");
   const watchFuncoes = form.watch("funcoes") || [];
   const watchDepartamentos = form.watch("departamentos") || [];
+
+  // Carrega membros quando usuário indica que cônjuge é membro
+  useEffect(() => {
+    async function loadMembros() {
+      if (!watchConjugeEhMembro || !igrejaId || !selectedUnidadeId) return;
+      
+      setLoadingMembros(true);
+      try {
+        const membrosRef = getMembrosCollection(igrejaId, selectedUnidadeId);
+        const membrosSnap = await getDocs(membrosRef);
+        
+        const lista: Pick<Membro, 'id' | 'nome' | 'telefone'>[] = [];
+        membrosSnap.forEach((docSnap) => {
+          const data = docSnap.data();
+          // Exclui o próprio membro se estiver editando
+          if (data.ativo !== false && (!membro || docSnap.id !== membro.id)) {
+            lista.push({
+              id: docSnap.id,
+              nome: data.nome || "",
+              telefone: data.telefone || "",
+            });
+          }
+        });
+        
+        // Ordena por nome
+        lista.sort((a, b) => a.nome.localeCompare(b.nome));
+        setMembrosLista(lista);
+      } catch (error) {
+        console.error("Erro ao carregar membros:", error);
+      } finally {
+        setLoadingMembros(false);
+      }
+    }
+    
+    loadMembros();
+  }, [watchConjugeEhMembro, igrejaId, selectedUnidadeId, membro]);
 
   // Format phone for display
   const formatPhone = (value: string) => {
@@ -277,21 +326,54 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
 
     // Validações do cônjuge
     const temConjugeAtual = data.estadoCivil === "casado" || data.estadoCivil === "amasiado";
-    if (temConjugeAtual && !data.nomeConjuge?.trim()) {
-      toast.error("Nome do cônjuge é obrigatório");
-      return;
-    }
-    if (data.cadastrarConjuge && !data.telefoneConjuge?.trim()) {
-      toast.error("Telefone do cônjuge é obrigatório para cadastrá-lo");
-      return;
+    if (temConjugeAtual) {
+      if (data.conjugeEhMembro) {
+        // Se é membro, deve selecionar um existente ou adicionar novo
+        if (!data.conjugeIdSelecionado && !data.adicionarNovoConjuge) {
+          toast.error("Selecione o cônjuge na lista ou clique em adicionar novo");
+          return;
+        }
+        // Se está adicionando novo, precisa dos dados
+        if (data.adicionarNovoConjuge) {
+          if (!data.nomeConjuge?.trim()) {
+            toast.error("Nome do cônjuge é obrigatório");
+            return;
+          }
+          if (!data.telefoneConjuge?.trim()) {
+            toast.error("Telefone do cônjuge é obrigatório");
+            return;
+          }
+        }
+      } else {
+        // Se não é membro, só precisa do nome
+        if (!data.nomeConjuge?.trim()) {
+          toast.error("Nome do cônjuge é obrigatório");
+          return;
+        }
+      }
     }
 
     setLoading(true);
     try {
+      // Determina nome e ID do cônjuge
+      let nomeConjugeFinal: string | null = null;
+      let conjugeIdFinal: string | null = null;
+      
+      if (temConjugeAtual) {
+        if (data.conjugeEhMembro && data.conjugeIdSelecionado) {
+          const conjugeSelecionado = membrosLista.find(m => m.id === data.conjugeIdSelecionado);
+          nomeConjugeFinal = conjugeSelecionado?.nome || null;
+          conjugeIdFinal = data.conjugeIdSelecionado;
+        } else if (data.nomeConjuge?.trim()) {
+          nomeConjugeFinal = data.nomeConjuge.trim();
+        }
+      }
+
       const membroData = {
         nome: data.nome,
         telefone: data.telefone.replace(/\D/g, ""),
         email: data.email || null,
+        sexo: (data.sexo as Sexo) || null,
         fotoUrl: fotoBase64 || null,
         dataNascimento: data.dataNascimento ? Timestamp.fromDate(data.dataNascimento) : null,
         tipo: data.tipo as TipoMembro,
@@ -299,7 +381,8 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
         cargoDescricao: data.cargo === "outro" ? data.cargoDescricao : null,
         // Estado civil e cônjuge
         estadoCivil: (data.estadoCivil as EstadoCivil) || "solteiro",
-        nomeConjuge: temConjugeAtual ? data.nomeConjuge?.trim() : null,
+        nomeConjuge: nomeConjugeFinal,
+        conjugeId: conjugeIdFinal,
         // Funções e departamentos
         temFuncaoIgreja: data.temFuncaoIgreja || false,
         funcoes: data.temFuncaoIgreja ? (data.funcoes as FuncaoIgreja[]) : null,
@@ -341,12 +424,22 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
           criadoPor: user.uid,
         });
         
-        // Se for para cadastrar o cônjuge também
-        if (data.cadastrarConjuge && data.conjugeEhMembro && data.nomeConjuge?.trim() && data.telefoneConjuge?.trim()) {
+        // Se selecionou um cônjuge existente, atualiza o registro do cônjuge para vincular
+        if (temConjugeAtual && data.conjugeEhMembro && data.conjugeIdSelecionado) {
+          const conjugeRef = getMembroDoc(igrejaId, selectedUnidadeId, data.conjugeIdSelecionado);
+          await updateDoc(conjugeRef, {
+            conjugeId: membroPrincipalRef.id,
+            nomeConjuge: data.nome.trim(),
+          });
+        }
+        
+        // Se for para cadastrar um novo cônjuge (não está na lista)
+        if (temConjugeAtual && data.conjugeEhMembro && data.adicionarNovoConjuge && data.nomeConjuge?.trim() && data.telefoneConjuge?.trim()) {
           const conjugeData = {
             nome: data.nomeConjuge.trim(),
             telefone: data.telefoneConjuge.replace(/\D/g, ""),
             email: data.emailConjuge || null,
+            sexo: (data.sexoConjuge as Sexo) || null,
             fotoUrl: null,
             dataNascimento: data.dataNascimentoConjuge ? Timestamp.fromDate(data.dataNascimentoConjuge) : null,
             tipo: data.tipo as TipoMembro, // Mesmo tipo do membro principal
@@ -475,6 +568,31 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
 
             <FormField
               control={form.control}
+              name="sexo"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sexo *</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {(Object.keys(SEXOS) as Sexo[]).map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {SEXOS[s]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="dataNascimento"
               render={({ field }) => (
                 <FormItem>
@@ -558,76 +676,117 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
                 
                 <FormField
                   control={form.control}
-                  name="nomeConjuge"
+                  name="conjugeEhMembro"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nome do Cônjuge *</FormLabel>
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                       <FormControl>
-                        <Input placeholder="Nome completo do cônjuge" {...field} />
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={(checked) => {
+                            field.onChange(checked);
+                            if (!checked) {
+                              form.setValue("conjugeIdSelecionado", "");
+                              form.setValue("adicionarNovoConjuge", false);
+                            }
+                          }}
+                        />
                       </FormControl>
-                      <FormMessage />
+                      <div className="space-y-1 leading-none">
+                        <FormLabel className="cursor-pointer">
+                          O cônjuge também é membro da igreja
+                        </FormLabel>
+                      </div>
                     </FormItem>
                   )}
                 />
 
-                {/* Opção de cadastrar cônjuge - apenas para novo membro */}
-                {!membro && (
-                  <>
-                    <FormField
-                      control={form.control}
-                      name="conjugeEhMembro"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={(checked) => {
-                                field.onChange(checked);
-                                if (!checked) {
-                                  form.setValue("cadastrarConjuge", false);
-                                }
-                              }}
+                {watchConjugeEhMembro ? (
+                  <div className="rounded-lg border bg-muted/50 p-4 space-y-4">
+                    {loadingMembros ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Spinner className="h-6 w-6" />
+                        <span className="ml-2 text-sm text-muted-foreground">Carregando membros...</span>
+                      </div>
+                    ) : (
+                      <>
+                        {!watchAdicionarNovoConjuge ? (
+                          <>
+                            <FormField
+                              control={form.control}
+                              name="conjugeIdSelecionado"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Selecione o cônjuge *</FormLabel>
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Selecione na lista" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {membrosLista.map((m) => (
+                                        <SelectItem key={m.id} value={m.id}>
+                                          {m.nome}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
                             />
-                          </FormControl>
-                          <div className="space-y-1 leading-none">
-                            <FormLabel className="cursor-pointer">
-                              O cônjuge também é membro da igreja
-                            </FormLabel>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
-
-                    {watchConjugeEhMembro && (
-                      <div className="rounded-lg border bg-muted/50 p-4 space-y-4">
-                        <FormField
-                          control={form.control}
-                          name="cadastrarConjuge"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value}
-                                  onCheckedChange={field.onChange}
-                                />
-                              </FormControl>
-                              <div className="space-y-1 leading-none">
-                                <FormLabel className="cursor-pointer">
-                                  Cadastrar cônjuge automaticamente
-                                </FormLabel>
-                                <p className="text-xs text-muted-foreground">
-                                  Os dois serão cadastrados juntos e vinculados no sistema
-                                </p>
-                              </div>
-                            </FormItem>
-                          )}
-                        />
-
-                        {watchCadastrarConjuge && (
-                          <div className="space-y-4 pt-2">
-                            <p className="text-sm font-medium text-muted-foreground">
-                              Dados adicionais do cônjuge
-                            </p>
+                            
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                form.setValue("adicionarNovoConjuge", true);
+                                form.setValue("conjugeIdSelecionado", "");
+                              }}
+                            >
+                              <UserPlus className="h-4 w-4 mr-2" />
+                              Não encontrei, adicionar novo
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                                <UserPlus className="h-4 w-4" />
+                                Cadastrar novo cônjuge
+                              </p>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  form.setValue("adicionarNovoConjuge", false);
+                                  form.setValue("nomeConjuge", "");
+                                  form.setValue("telefoneConjuge", "");
+                                  form.setValue("emailConjuge", "");
+                                  form.setValue("sexoConjuge", undefined);
+                                  form.setValue("dataNascimentoConjuge", undefined);
+                                }}
+                              >
+                                <Search className="h-4 w-4 mr-2" />
+                                Voltar para lista
+                              </Button>
+                            </div>
+                            
+                            <FormField
+                              control={form.control}
+                              name="nomeConjuge"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Nome do Cônjuge *</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="Nome completo do cônjuge" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
                             
                             <div className="grid gap-4 sm:grid-cols-2">
                               <FormField
@@ -653,6 +812,33 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
 
                               <FormField
                                 control={form.control}
+                                name="sexoConjuge"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Sexo do Cônjuge *</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Selecione" />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        {(Object.keys(SEXOS) as Sexo[]).map((s) => (
+                                          <SelectItem key={s} value={s}>
+                                            {SEXOS[s]}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <FormField
+                                control={form.control}
                                 name="emailConjuge"
                                 render={({ field }) => (
                                   <FormItem>
@@ -664,62 +850,76 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
                                   </FormItem>
                                 )}
                               />
-                            </div>
 
-                            <FormField
-                              control={form.control}
-                              name="dataNascimentoConjuge"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Data de Nascimento do Cônjuge</FormLabel>
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <FormControl>
-                                        <Button
-                                          variant="outline"
-                                          className={cn(
-                                            "w-full pl-3 text-left font-normal",
-                                            !field.value && "text-muted-foreground"
-                                          )}
-                                        >
-                                          {field.value ? (
-                                            format(field.value, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
-                                          ) : (
-                                            <span>Selecione a data</span>
-                                          )}
-                                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                        </Button>
-                                      </FormControl>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                      <Calendar
-                                        mode="single"
-                                        selected={field.value}
-                                        onSelect={field.onChange}
-                                        disabled={(date) =>
-                                          date > new Date() || date < new Date("1900-01-01")
-                                        }
-                                        defaultMonth={field.value || new Date(1990, 0)}
-                                        captionLayout="dropdown"
-                                        fromYear={1920}
-                                        toYear={new Date().getFullYear()}
-                                        locale={ptBR}
-                                      />
-                                    </PopoverContent>
-                                  </Popover>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
+                              <FormField
+                                control={form.control}
+                                name="dataNascimentoConjuge"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Data de Nascimento</FormLabel>
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <FormControl>
+                                          <Button
+                                            variant="outline"
+                                            className={cn(
+                                              "w-full pl-3 text-left font-normal",
+                                              !field.value && "text-muted-foreground"
+                                            )}
+                                          >
+                                            {field.value ? (
+                                              format(field.value, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+                                            ) : (
+                                              <span>Selecione</span>
+                                            )}
+                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                          </Button>
+                                        </FormControl>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-auto p-0" align="start">
+                                        <Calendar
+                                          mode="single"
+                                          selected={field.value}
+                                          onSelect={field.onChange}
+                                          disabled={(date) =>
+                                            date > new Date() || date < new Date("1900-01-01")
+                                          }
+                                          defaultMonth={field.value || new Date(1990, 0)}
+                                          captionLayout="dropdown"
+                                          fromYear={1920}
+                                          toYear={new Date().getFullYear()}
+                                          locale={ptBR}
+                                        />
+                                      </PopoverContent>
+                                    </Popover>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
                             
                             <p className="text-xs text-muted-foreground">
                               O endereço será o mesmo informado abaixo para ambos.
                             </p>
-                          </div>
+                          </>
                         )}
-                      </div>
+                      </>
                     )}
-                  </>
+                  </div>
+                ) : (
+                  <FormField
+                    control={form.control}
+                    name="nomeConjuge"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nome do Cônjuge *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Nome completo do cônjuge" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 )}
               </>
             )}
