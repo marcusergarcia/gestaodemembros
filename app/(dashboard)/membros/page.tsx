@@ -82,7 +82,7 @@ interface MembroComUnidade extends Membro {
 }
 
 export default function MembrosPage() {
-  const { usuario, igrejaId, unidadesAcessiveis, todasUnidades, nivelAcesso, temAcessoTotal } = useAuth();
+  const { usuario, igrejaId, unidadeId: unidadeAtualId, unidadesAcessiveis, todasUnidades, nivelAcesso, temAcessoTotal } = useAuth();
   const [membros, setMembros] = useState<MembroComUnidade[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -202,9 +202,9 @@ export default function MembrosPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {canEdit && igrejaId && (
+          {canEdit && igrejaId && unidadeAtualId && (
             <QRCodeModal
-              url={`${typeof window !== "undefined" ? window.location.origin : ""}/cadastro/membro?igreja=${igrejaId}`}
+              url={`${typeof window !== "undefined" ? window.location.origin : ""}/cadastro/membro?igreja=${igrejaId}&unidade=${unidadeAtualId}`}
               title="Cadastro de Membro"
               description="Escaneie o QR Code ou compartilhe o link para membros se cadastrarem"
               triggerLabel="QR Code Membro"
