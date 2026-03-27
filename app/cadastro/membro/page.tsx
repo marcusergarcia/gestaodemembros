@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Church, User, CheckCircle2, MapPin } from "lucide-react";
-import { TIPOS_MEMBRO, TipoMembro } from "@/lib/types";
+import { TIPOS_MEMBRO, TipoMembro, CARGOS_MEMBRO, CargoMembro } from "@/lib/types";
 
 interface UnidadeSimples {
   id: string;
@@ -48,6 +48,8 @@ function CadastroMembroContent() {
   const [email, setEmail] = useState("");
   const [dataNascimento, setDataNascimento] = useState("");
   const [tipo, setTipo] = useState<TipoMembro>("congregado");
+  const [cargo, setCargo] = useState<CargoMembro | "">("");
+  const [cargoDescricao, setCargoDescricao] = useState("");
   const [unidadeId, setUnidadeId] = useState(unidadeIdParam || "");
 
   // Endereço
@@ -178,12 +180,10 @@ function CadastroMembroContent() {
         nome: nome.trim(),
         telefone: telefone.replace(/\D/g, ""),
         tipo,
-        batizado,
         ativo: true,
         dataCadastro: Timestamp.now(),
         criadoPor: "formulario_publico",
         unidadeId,
-        igrejaId,
       };
 
       if (email.trim()) {
@@ -196,15 +196,31 @@ function CadastroMembroContent() {
         membroData.observacoes = observacoes.trim();
       }
 
-      // Endereço
+      // Cargo (para obreiro/líder)
+      const showCargo = tipo === "obreiro" || tipo === "lider";
+      if (showCargo && cargo) {
+        membroData.cargo = cargo;
+        if (cargo === "outro" && cargoDescricao.trim()) {
+          membroData.cargoDescricao = cargoDescricao.trim();
+        }
+      }
+
+      // Batizado
+      if (batizado) {
+        membroData.dataBatismo = Timestamp.now(); // Marca como batizado
+      }
+
+      // Endereço no formato correto (objeto)
       if (cep || logradouro || cidade) {
-        membroData.cep = cep;
-        membroData.logradouro = logradouro;
-        membroData.numero = numero;
-        membroData.complemento = complemento;
-        membroData.bairro = bairro;
-        membroData.cidade = cidade;
-        membroData.estado = estado;
+        membroData.endereco = {
+          cep: cep || "",
+          logradouro: logradouro || "",
+          numero: numero || "",
+          complemento: complemento || "",
+          bairro: bairro || "",
+          cidade: cidade || "",
+          estado: estado || "",
+        };
       }
 
       await addDoc(membrosRef, membroData);
@@ -337,42 +353,75 @@ function CadastroMembroContent() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="tipo">Tipo de Membro</Label>
-                  <Select value={tipo} onValueChange={(v) => setTipo(v as TipoMembro)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(TIPOS_MEMBRO).map(([value, label]) => (
+              <div className="space-y-2">
+                <Label htmlFor="tipo">Tipo de Membro *</Label>
+                <Select value={tipo} onValueChange={(v) => setTipo(v as TipoMembro)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(TIPOS_MEMBRO)
+                      .filter(([value]) => value !== "visitante") // Visitante tem formulário próprio
+                      .map(([value, label]) => (
                         <SelectItem key={value} value={value}>
                           {label}
                         </SelectItem>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                  </SelectContent>
+                </Select>
+              </div>
 
-                {/* Só mostra seleção de unidade se não veio no link E há mais de uma opção */}
-                {!unidadeIdParam && unidades.length > 1 && (
+              {/* Campo de Cargo (aparece para Obreiro e Líder) */}
+              {(tipo === "obreiro" || tipo === "lider") && (
+                <>
                   <div className="space-y-2">
-                    <Label htmlFor="unidade">Unidade *</Label>
-                    <Select value={unidadeId} onValueChange={setUnidadeId}>
+                    <Label htmlFor="cargo">Cargo *</Label>
+                    <Select value={cargo} onValueChange={(v) => setCargo(v as CargoMembro)}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione" />
+                        <SelectValue placeholder="Selecione o cargo" />
                       </SelectTrigger>
                       <SelectContent>
-                        {unidades.map((unidade) => (
-                          <SelectItem key={unidade.id} value={unidade.id}>
-                            {unidade.nome}
+                        {Object.entries(CARGOS_MEMBRO).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                )}
-              </div>
+
+                  {cargo === "outro" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="cargoDescricao">Descreva o cargo</Label>
+                      <Input
+                        id="cargoDescricao"
+                        value={cargoDescricao}
+                        onChange={(e) => setCargoDescricao(e.target.value)}
+                        placeholder="Qual é o cargo?"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Só mostra seleção de unidade se não veio no link E há mais de uma opção */}
+              {!unidadeIdParam && unidades.length > 1 && (
+                <div className="space-y-2">
+                  <Label htmlFor="unidade">Unidade *</Label>
+                  <Select value={unidadeId} onValueChange={setUnidadeId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {unidades.map((unidade) => (
+                        <SelectItem key={unidade.id} value={unidade.id}>
+                          {unidade.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="flex items-center space-x-2">
                 <Checkbox
@@ -380,7 +429,7 @@ function CadastroMembroContent() {
                   checked={batizado}
                   onCheckedChange={(checked) => setBatizado(!!checked)}
                 />
-                <Label htmlFor="batizado">Já sou batizado nas águas</Label>
+                <Label htmlFor="batizado">Sou batizado nas águas</Label>
               </div>
             </CardContent>
           </Card>
