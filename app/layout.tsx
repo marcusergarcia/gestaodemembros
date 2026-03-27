@@ -20,6 +20,15 @@ export const metadata: Metadata = {
   description:
     "Sistema de gestão de membros com geolocalização para igrejas. Cadastre membros, visualize no mapa e crie grupos de WhatsApp por proximidade.",
   generator: "v0.app",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Gestão de Membros",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: [
       {
@@ -35,7 +44,10 @@ export const metadata: Metadata = {
         type: "image/svg+xml",
       },
     ],
-    apple: "/apple-icon.png",
+    apple: [
+      { url: "/icons/icon-152x152.png", sizes: "152x152" },
+      { url: "/icons/icon-192x192.png", sizes: "192x192" },
+    ],
   },
 };
 
