@@ -84,6 +84,8 @@ function CadastroMembroContent() {
   const [emailConjuge, setEmailConjuge] = useState("");
   const [dataNascimentoConjuge, setDataNascimentoConjuge] = useState("");
   const [sexoConjuge, setSexoConjuge] = useState<Sexo | "">("");
+  const [tipoConjuge, setTipoConjuge] = useState<TipoMembro>("membro");
+  const [cargoConjuge, setCargoConjuge] = useState<CargoMembro | "">("");
 
   // Outros
   const [batizado, setBatizado] = useState(false);
@@ -91,6 +93,7 @@ function CadastroMembroContent() {
   
   // Verifica se o estado civil permite cônjuge
   const temConjuge = estadoCivil === "casado" || estadoCivil === "amasiado";
+  const showCargoConjuge = tipoConjuge === "obreiro" || tipoConjuge === "lider";
 
   // Carrega informações da igreja
   useEffect(() => {
@@ -399,7 +402,7 @@ function CadastroMembroContent() {
         const conjugeData: Record<string, unknown> = {
           nome: nomeConjuge.trim(),
           telefone: telefoneConjuge.replace(/\D/g, ""),
-          tipo, // Mesmo tipo do membro principal
+          tipo: tipoConjuge, // Tipo selecionado para o cônjuge
           ativo: true,
           dataCadastro: Timestamp.now(),
           criadoPor: "formulario_publico",
@@ -408,6 +411,11 @@ function CadastroMembroContent() {
           nomeConjuge: nome.trim(), // O nome do membro principal é o cônjuge do cônjuge
           conjugeId: membroPrincipalRef.id, // Vincula ao membro principal
         };
+        
+        // Cargo (se obreiro/líder)
+        if (showCargoConjuge && cargoConjuge) {
+          conjugeData.cargo = cargoConjuge;
+        }
         
         if (emailConjuge.trim()) {
           conjugeData.email = emailConjuge.trim().toLowerCase();
@@ -774,8 +782,10 @@ function CadastroMembroContent() {
                                   setNomeConjuge("");
                                   setTelefoneConjuge("");
                                   setEmailConjuge("");
-                                  setDataNascimentoConjuge("");
-                                  setSexoConjuge("");
+                                setDataNascimentoConjuge("");
+                                setSexoConjuge("");
+                                setTipoConjuge("membro");
+                                setCargoConjuge("");
                                 }}
                               >
                                 <Search className="h-4 w-4 mr-2" />
@@ -791,6 +801,42 @@ function CadastroMembroContent() {
                                 onChange={(e) => setNomeConjuge(e.target.value)}
                                 placeholder="Nome completo do cônjuge"
                               />
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="tipoConjuge">Tipo do Cônjuge *</Label>
+                                <Select value={tipoConjuge} onValueChange={(v) => setTipoConjuge(v as TipoMembro)}>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecione" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Object.entries(TIPOS_MEMBRO).map(([value, label]) => (
+                                      <SelectItem key={value} value={value}>
+                                        {label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              {showCargoConjuge && (
+                                <div className="space-y-2">
+                                  <Label htmlFor="cargoConjuge">Cargo do Cônjuge *</Label>
+                                  <Select value={cargoConjuge} onValueChange={(v) => setCargoConjuge(v as CargoMembro)}>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Selecione" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {Object.entries(CARGOS_MEMBRO).map(([value, label]) => (
+                                        <SelectItem key={value} value={value}>
+                                          {label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
                             </div>
                             
                             <div className="grid grid-cols-2 gap-4">
