@@ -18,8 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Church, User, CheckCircle2, MapPin } from "lucide-react";
-import { TIPOS_MEMBRO, TipoMembro, CARGOS_MEMBRO, CargoMembro } from "@/lib/types";
+import { Church, User, CheckCircle2, MapPin, Heart, Users } from "lucide-react";
+import { TIPOS_MEMBRO, TipoMembro, CARGOS_MEMBRO, CargoMembro, ESTADOS_CIVIS, EstadoCivil } from "@/lib/types";
 
 interface UnidadeSimples {
   id: string;
@@ -66,9 +66,23 @@ function CadastroMembroContent() {
   const [coordenadas, setCoordenadas] = useState<{ lat: number; lng: number } | null>(null);
   const [loadingGeo, setLoadingGeo] = useState(false);
 
+  // Estado Civil e Cônjuge
+  const [estadoCivil, setEstadoCivil] = useState<EstadoCivil>("solteiro");
+  const [nomeConjuge, setNomeConjuge] = useState("");
+  const [conjugeEhMembro, setConjugeEhMembro] = useState(false);
+  const [cadastrarConjuge, setCadastrarConjuge] = useState(false);
+  
+  // Dados do cônjuge (quando cadastrar junto)
+  const [telefoneConjuge, setTelefoneConjuge] = useState("");
+  const [emailConjuge, setEmailConjuge] = useState("");
+  const [dataNascimentoConjuge, setDataNascimentoConjuge] = useState("");
+
   // Outros
   const [batizado, setBatizado] = useState(false);
   const [observacoes, setObservacoes] = useState("");
+  
+  // Verifica se o estado civil permite cônjuge
+  const temConjuge = estadoCivil === "casado" || estadoCivil === "amasiado";
 
   // Carrega informações da igreja
   useEffect(() => {
@@ -222,6 +236,16 @@ function CadastroMembroContent() {
       toast.error("Link inválido");
       return;
     }
+    
+    // Validações do cônjuge
+    if (temConjuge && !nomeConjuge.trim()) {
+      toast.error("Nome do cônjuge é obrigatório");
+      return;
+    }
+    if (cadastrarConjuge && !telefoneConjuge.trim()) {
+      toast.error("Telefone do cônjuge é obrigatório para cadastrá-lo");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -245,6 +269,12 @@ function CadastroMembroContent() {
       }
       if (observacoes.trim()) {
         membroData.observacoes = observacoes.trim();
+      }
+
+      // Estado Civil e Cônjuge
+      membroData.estadoCivil = estadoCivil;
+      if (temConjuge && nomeConjuge.trim()) {
+        membroData.nomeConjuge = nomeConjuge.trim();
       }
 
       // Cargo (para obreiro/líder)
@@ -279,7 +309,57 @@ function CadastroMembroContent() {
         membroData.coordenadas = coordenadas;
       }
 
-      await addDoc(membrosRef, membroData);
+      // Primeiro cadastra o membro principal
+      const membroPrincipalRef = await addDoc(membrosRef, membroData);
+      
+      // Se for para cadastrar o cônjuge também
+      if (cadastrarConjuge && conjugeEhMembro && nomeConjuge.trim() && telefoneConjuge.trim()) {
+        const conjugeData: Record<string, unknown> = {
+          nome: nomeConjuge.trim(),
+          telefone: telefoneConjuge.replace(/\D/g, ""),
+          tipo, // Mesmo tipo do membro principal
+          ativo: true,
+          dataCadastro: Timestamp.now(),
+          criadoPor: "formulario_publico",
+          unidadeId,
+          estadoCivil, // Mesmo estado civil
+          nomeConjuge: nome.trim(), // O nome do membro principal é o cônjuge do cônjuge
+          conjugeId: membroPrincipalRef.id, // Vincula ao membro principal
+        };
+        
+        if (emailConjuge.trim()) {
+          conjugeData.email = emailConjuge.trim().toLowerCase();
+        }
+        if (dataNascimentoConjuge) {
+          conjugeData.dataNascimento = Timestamp.fromDate(new Date(dataNascimentoConjuge));
+        }
+        
+        // Usa o mesmo endereço
+        if (cep || logradouro || cidade) {
+          conjugeData.endereco = {
+            cep: cep || "",
+            logradouro: logradouro || "",
+            numero: numero || "",
+            complemento: complemento || "",
+            bairro: bairro || "",
+            cidade: cidade || "",
+            estado: estado || "",
+          };
+        }
+        if (coordenadas) {
+          conjugeData.coordenadas = coordenadas;
+        }
+        
+        // Cadastra o cônjuge
+        const conjugeRef = await addDoc(membrosRef, conjugeData);
+        
+        // Atualiza o membro principal com o ID do cônjuge
+        const { updateDoc, doc } = await import("firebase/firestore");
+        await updateDoc(doc(db, "igrejas", igrejaId, "unidades", unidadeId, "membros", membroPrincipalRef.id), {
+          conjugeId: conjugeRef.id
+        });
+      }
+      
       setSuccess(true);
     } catch (error) {
       console.error("Erro ao cadastrar:", error);
@@ -410,6 +490,22 @@ function CadastroMembroContent() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="estadoCivil">Estado Civil *</Label>
+                <Select value={estadoCivil} onValueChange={(v) => setEstadoCivil(v as EstadoCivil)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(ESTADOS_CIVIS).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="tipo">Tipo de Membro *</Label>
                 <Select value={tipo} onValueChange={(v) => setTipo(v as TipoMembro)}>
                   <SelectTrigger>
@@ -489,6 +585,109 @@ function CadastroMembroContent() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Dados do Cônjuge - Aparece apenas se casado ou amasiado */}
+          {temConjuge && (
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Heart className="h-5 w-5" />
+                  Dados do Cônjuge
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nomeConjuge">Nome do Cônjuge *</Label>
+                  <Input
+                    id="nomeConjuge"
+                    value={nomeConjuge}
+                    onChange={(e) => setNomeConjuge(e.target.value)}
+                    placeholder="Nome completo do cônjuge"
+                    required
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="conjugeEhMembro"
+                    checked={conjugeEhMembro}
+                    onCheckedChange={(checked) => {
+                      setConjugeEhMembro(!!checked);
+                      if (!checked) setCadastrarConjuge(false);
+                    }}
+                  />
+                  <Label htmlFor="conjugeEhMembro">Meu cônjuge também é membro da igreja</Label>
+                </div>
+
+                {conjugeEhMembro && (
+                  <div className="rounded-lg border bg-muted/50 p-4 space-y-4">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="cadastrarConjuge"
+                        checked={cadastrarConjuge}
+                        onCheckedChange={(checked) => setCadastrarConjuge(!!checked)}
+                      />
+                      <div>
+                        <Label htmlFor="cadastrarConjuge" className="cursor-pointer">
+                          Cadastrar meu cônjuge automaticamente
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Os dois serão cadastrados juntos e vinculados no sistema
+                        </p>
+                      </div>
+                    </div>
+
+                    {cadastrarConjuge && (
+                      <div className="space-y-4 pt-2">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Users className="h-4 w-4" />
+                          <span>Dados adicionais do cônjuge</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="telefoneConjuge">WhatsApp do Cônjuge *</Label>
+                            <Input
+                              id="telefoneConjuge"
+                              value={telefoneConjuge}
+                              onChange={(e) => setTelefoneConjuge(formatPhoneInput(e.target.value))}
+                              placeholder="11999999999"
+                              maxLength={11}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="emailConjuge">E-mail do Cônjuge</Label>
+                            <Input
+                              id="emailConjuge"
+                              type="email"
+                              value={emailConjuge}
+                              onChange={(e) => setEmailConjuge(e.target.value)}
+                              placeholder="email@exemplo.com"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="dataNascimentoConjuge">Data de Nascimento do Cônjuge</Label>
+                          <Input
+                            id="dataNascimentoConjuge"
+                            type="date"
+                            value={dataNascimentoConjuge}
+                            onChange={(e) => setDataNascimentoConjuge(e.target.value)}
+                          />
+                        </div>
+                        
+                        <p className="text-xs text-muted-foreground">
+                          O endereço será o mesmo informado acima para ambos.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Endereço */}
           <Card>

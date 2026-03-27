@@ -46,11 +46,13 @@ import {
   CargoMembro,
   Departamento,
   FuncaoIgreja,
+  EstadoCivil,
   TIPOS_MEMBRO,
   CARGOS_MEMBRO,
   DEPARTAMENTOS,
   FUNCOES_IGREJA,
   TIPOS_UNIDADE,
+  ESTADOS_CIVIS,
 } from "@/lib/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -66,6 +68,14 @@ const membroSchema = z.object({
     .enum(["pastor", "evangelista", "presbitero", "diacono", "auxiliar_escala", "outro"])
     .optional(),
   cargoDescricao: z.string().optional(),
+  // Estado civil e cônjuge
+  estadoCivil: z.enum(["solteiro", "casado", "amasiado", "divorciado", "viuvo"]).optional(),
+  nomeConjuge: z.string().optional(),
+  conjugeEhMembro: z.boolean().optional(),
+  cadastrarConjuge: z.boolean().optional(),
+  telefoneConjuge: z.string().optional(),
+  emailConjuge: z.string().email("Email inválido").optional().or(z.literal("")),
+  dataNascimentoConjuge: z.date().optional(),
   // Campos para funções e departamentos
   temFuncaoIgreja: z.boolean().optional(),
   funcoes: z.array(z.enum(["musico", "cantor", "sonoplasta", "projetista", "recepcionista", "porteiro", "tesoureiro", "secretario", "professor_ebd", "lider_celula", "lider_departamento", "coordenador", "outro"])).optional(),
@@ -130,6 +140,13 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
       tipo: membro?.tipo || "visitante",
       cargo: membro?.cargo,
       cargoDescricao: membro?.cargoDescricao || "",
+      estadoCivil: membro?.estadoCivil || "solteiro",
+      nomeConjuge: membro?.nomeConjuge || "",
+      conjugeEhMembro: false,
+      cadastrarConjuge: false,
+      telefoneConjuge: "",
+      emailConjuge: "",
+      dataNascimentoConjuge: undefined,
       temFuncaoIgreja: membro?.temFuncaoIgreja || false,
       funcoes: membro?.funcoes || [],
       funcaoDescricao: membro?.funcaoDescricao || "",
@@ -151,6 +168,10 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
   const watchTipo = form.watch("tipo");
   const showCargo = ["obreiro", "lider"].includes(watchTipo);
   const watchCargo = form.watch("cargo");
+  const watchEstadoCivil = form.watch("estadoCivil");
+  const temConjuge = watchEstadoCivil === "casado" || watchEstadoCivil === "amasiado";
+  const watchConjugeEhMembro = form.watch("conjugeEhMembro");
+  const watchCadastrarConjuge = form.watch("cadastrarConjuge");
   const watchTemFuncao = form.watch("temFuncaoIgreja");
   const watchEhLider = form.watch("ehLider");
   const watchFuncoes = form.watch("funcoes") || [];
@@ -254,6 +275,17 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
       return;
     }
 
+    // Validações do cônjuge
+    const temConjugeAtual = data.estadoCivil === "casado" || data.estadoCivil === "amasiado";
+    if (temConjugeAtual && !data.nomeConjuge?.trim()) {
+      toast.error("Nome do cônjuge é obrigatório");
+      return;
+    }
+    if (data.cadastrarConjuge && !data.telefoneConjuge?.trim()) {
+      toast.error("Telefone do cônjuge é obrigatório para cadastrá-lo");
+      return;
+    }
+
     setLoading(true);
     try {
       const membroData = {
@@ -265,6 +297,9 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
         tipo: data.tipo as TipoMembro,
         cargo: showCargo ? (data.cargo as CargoMembro) : null,
         cargoDescricao: data.cargo === "outro" ? data.cargoDescricao : null,
+        // Estado civil e cônjuge
+        estadoCivil: (data.estadoCivil as EstadoCivil) || "solteiro",
+        nomeConjuge: temConjugeAtual ? data.nomeConjuge?.trim() : null,
         // Funções e departamentos
         temFuncaoIgreja: data.temFuncaoIgreja || false,
         funcoes: data.temFuncaoIgreja ? (data.funcoes as FuncaoIgreja[]) : null,
@@ -299,13 +334,62 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
         toast.success("Membro atualizado com sucesso!");
       } else {
         // Create new member na unidade selecionada
-        await addDoc(getMembrosCollection(igrejaId, selectedUnidadeId), {
+        const membroPrincipalRef = await addDoc(getMembrosCollection(igrejaId, selectedUnidadeId), {
           ...membroData,
           unidadeId: selectedUnidadeId,
           dataCadastro: Timestamp.now(),
           criadoPor: user.uid,
         });
-        toast.success("Membro cadastrado com sucesso!");
+        
+        // Se for para cadastrar o cônjuge também
+        if (data.cadastrarConjuge && data.conjugeEhMembro && data.nomeConjuge?.trim() && data.telefoneConjuge?.trim()) {
+          const conjugeData = {
+            nome: data.nomeConjuge.trim(),
+            telefone: data.telefoneConjuge.replace(/\D/g, ""),
+            email: data.emailConjuge || null,
+            fotoUrl: null,
+            dataNascimento: data.dataNascimentoConjuge ? Timestamp.fromDate(data.dataNascimentoConjuge) : null,
+            tipo: data.tipo as TipoMembro, // Mesmo tipo do membro principal
+            cargo: null,
+            cargoDescricao: null,
+            estadoCivil: data.estadoCivil as EstadoCivil,
+            nomeConjuge: data.nome.trim(), // O nome do membro principal é o cônjuge do cônjuge
+            conjugeId: membroPrincipalRef.id, // Vincula ao membro principal
+            temFuncaoIgreja: false,
+            funcoes: null,
+            funcaoDescricao: null,
+            departamentos: null,
+            departamentoDescricao: null,
+            ehLider: false,
+            liderDe: null,
+            endereco: {
+              logradouro: data.logradouro,
+              numero: data.numero,
+              complemento: data.complemento || null,
+              bairro: data.bairro,
+              cidade: data.cidade,
+              estado: data.estado,
+              cep: data.cep.replace(/\D/g, ""),
+            },
+            coordenadas: coordenadas || null,
+            observacoes: null,
+            ativo: true,
+            unidadeId: selectedUnidadeId,
+            dataCadastro: Timestamp.now(),
+            criadoPor: user.uid,
+          };
+          
+          // Cadastra o cônjuge
+          const conjugeRef = await addDoc(getMembrosCollection(igrejaId, selectedUnidadeId), conjugeData);
+          
+          // Atualiza o membro principal com o ID do cônjuge
+          const membroRef = getMembroDoc(igrejaId, selectedUnidadeId, membroPrincipalRef.id);
+          await updateDoc(membroRef, { conjugeId: conjugeRef.id });
+          
+          toast.success("Membro e cônjuge cadastrados com sucesso!");
+        } else {
+          toast.success("Membro cadastrado com sucesso!");
+        }
       }
 
       router.push("/membros");
@@ -434,6 +518,211 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
                 </FormItem>
               )}
             />
+          </CardContent>
+        </Card>
+
+        {/* Estado Civil e Cônjuge */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Estado Civil</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <FormField
+              control={form.control}
+              name="estadoCivil"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Estado Civil *</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {(Object.keys(ESTADOS_CIVIS) as EstadoCivil[]).map((ec) => (
+                        <SelectItem key={ec} value={ec}>
+                          {ESTADOS_CIVIS[ec]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {temConjuge && (
+              <>
+                <Separator />
+                
+                <FormField
+                  control={form.control}
+                  name="nomeConjuge"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nome do Cônjuge *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Nome completo do cônjuge" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Opção de cadastrar cônjuge - apenas para novo membro */}
+                {!membro && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="conjugeEhMembro"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={(checked) => {
+                                field.onChange(checked);
+                                if (!checked) {
+                                  form.setValue("cadastrarConjuge", false);
+                                }
+                              }}
+                            />
+                          </FormControl>
+                          <div className="space-y-1 leading-none">
+                            <FormLabel className="cursor-pointer">
+                              O cônjuge também é membro da igreja
+                            </FormLabel>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+
+                    {watchConjugeEhMembro && (
+                      <div className="rounded-lg border bg-muted/50 p-4 space-y-4">
+                        <FormField
+                          control={form.control}
+                          name="cadastrarConjuge"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <div className="space-y-1 leading-none">
+                                <FormLabel className="cursor-pointer">
+                                  Cadastrar cônjuge automaticamente
+                                </FormLabel>
+                                <p className="text-xs text-muted-foreground">
+                                  Os dois serão cadastrados juntos e vinculados no sistema
+                                </p>
+                              </div>
+                            </FormItem>
+                          )}
+                        />
+
+                        {watchCadastrarConjuge && (
+                          <div className="space-y-4 pt-2">
+                            <p className="text-sm font-medium text-muted-foreground">
+                              Dados adicionais do cônjuge
+                            </p>
+                            
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <FormField
+                                control={form.control}
+                                name="telefoneConjuge"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Telefone do Cônjuge *</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        placeholder="(11) 99999-9999"
+                                        value={formatPhone(field.value || "")}
+                                        onChange={(e) => {
+                                          const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
+                                          field.onChange(digits);
+                                        }}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name="emailConjuge"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Email do Cônjuge</FormLabel>
+                                    <FormControl>
+                                      <Input type="email" placeholder="email@exemplo.com" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+
+                            <FormField
+                              control={form.control}
+                              name="dataNascimentoConjuge"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Data de Nascimento do Cônjuge</FormLabel>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <FormControl>
+                                        <Button
+                                          variant="outline"
+                                          className={cn(
+                                            "w-full pl-3 text-left font-normal",
+                                            !field.value && "text-muted-foreground"
+                                          )}
+                                        >
+                                          {field.value ? (
+                                            format(field.value, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+                                          ) : (
+                                            <span>Selecione a data</span>
+                                          )}
+                                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                      </FormControl>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                      <Calendar
+                                        mode="single"
+                                        selected={field.value}
+                                        onSelect={field.onChange}
+                                        disabled={(date) =>
+                                          date > new Date() || date < new Date("1900-01-01")
+                                        }
+                                        defaultMonth={field.value || new Date(1990, 0)}
+                                        captionLayout="dropdown"
+                                        fromYear={1920}
+                                        toYear={new Date().getFullYear()}
+                                        locale={ptBR}
+                                      />
+                                    </PopoverContent>
+                                  </Popover>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            
+                            <p className="text-xs text-muted-foreground">
+                              O endereço será o mesmo informado abaixo para ambos.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            )}
           </CardContent>
         </Card>
 

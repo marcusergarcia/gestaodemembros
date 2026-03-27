@@ -2,6 +2,8 @@ import { Timestamp } from "firebase/firestore";
 
 export type TipoMembro = "visitante" | "congregado" | "membro" | "obreiro" | "lider";
 
+export type EstadoCivil = "solteiro" | "casado" | "amasiado" | "divorciado" | "viuvo";
+
 export type CargoMembro =
   | "pastor"
   | "evangelista"
@@ -161,6 +163,10 @@ export interface Membro {
   tipo: TipoMembro;
   cargo?: CargoMembro;
   cargoDescricao?: string;
+  // Estado civil e cônjuge
+  estadoCivil?: EstadoCivil;
+  nomeConjuge?: string;
+  conjugeId?: string; // ID do cônjuge se também for membro
   // Campos para funções e departamentos
   temFuncaoIgreja?: boolean;
   funcoes?: FuncaoIgreja[];
@@ -203,6 +209,14 @@ export const TIPOS_MEMBRO: Record<TipoMembro, string> = {
   membro: "Membro",
   obreiro: "Obreiro",
   lider: "Líder",
+};
+
+export const ESTADOS_CIVIS: Record<EstadoCivil, string> = {
+  solteiro: "Solteiro(a)",
+  casado: "Casado(a)",
+  amasiado: "Amasiado(a)",
+  divorciado: "Divorciado(a)",
+  viuvo: "Viúvo(a)",
 };
 
 export const CARGOS_MEMBRO: Record<CargoMembro, string> = {
