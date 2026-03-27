@@ -319,14 +319,6 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
     // Coordenadas são opcionais - o membro pode ser cadastrado sem geolocalização
     // A localização no mapa pode ser feita posteriormente se necessário
     
-    console.log("[v0] onSubmit chamado com data:", {
-      estadoCivil: data.estadoCivil,
-      conjugeEhMembro: data.conjugeEhMembro,
-      nomeConjuge: data.nomeConjuge,
-      conjugeIdSelecionado: data.conjugeIdSelecionado,
-      adicionarNovoConjuge: data.adicionarNovoConjuge,
-    });
-    
     if (!user || !igrejaId || !selectedUnidadeId) {
       toast.error("Você precisa estar logado e selecionar uma unidade");
       return;
@@ -334,11 +326,9 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
 
     // Validações do cônjuge
     const temConjugeAtual = data.estadoCivil === "casado" || data.estadoCivil === "amasiado";
-    console.log("[v0] temConjugeAtual:", temConjugeAtual);
     
     if (temConjugeAtual) {
       if (data.conjugeEhMembro) {
-        console.log("[v0] cônjuge é membro - verificando seleção ou adicionar novo");
         // Se é membro, deve selecionar um existente ou adicionar novo
         if (!data.conjugeIdSelecionado && !data.adicionarNovoConjuge) {
           toast.error("Selecione o cônjuge na lista ou clique em adicionar novo");
@@ -356,17 +346,13 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
           }
         }
       } else {
-        console.log("[v0] cônjuge NÃO é membro - verificando nome:", data.nomeConjuge);
         // Se não é membro, só precisa do nome
         if (!data.nomeConjuge?.trim()) {
-          console.log("[v0] nome do cônjuge vazio - retornando erro");
           toast.error("Nome do cônjuge é obrigatório");
           return;
         }
       }
     }
-    
-    console.log("[v0] validações passaram, continuando...");
 
     setLoading(true);
     try {
@@ -428,8 +414,68 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
       if (membro && unidadeIdParam) {
         // Update existing member
         const membroRef = getMembroDoc(igrejaId, unidadeIdParam, membro.id);
-        await updateDoc(membroRef, membroData);
-        toast.success("Membro atualizado com sucesso!");
+        
+        // Se selecionou um cônjuge existente, atualiza o registro do cônjuge para vincular
+        if (temConjugeAtual && data.conjugeEhMembro && data.conjugeIdSelecionado) {
+          const conjugeExistenteRef = getMembroDoc(igrejaId, unidadeIdParam, data.conjugeIdSelecionado);
+          await updateDoc(conjugeExistenteRef, {
+            conjugeId: membro.id,
+            nomeConjuge: data.nome.trim(),
+          });
+        }
+        
+        // Se for para cadastrar um novo cônjuge (não está na lista)
+        if (temConjugeAtual && data.conjugeEhMembro && data.adicionarNovoConjuge && data.nomeConjuge?.trim() && data.telefoneConjuge?.trim()) {
+          const conjugeData = {
+            nome: data.nomeConjuge.trim(),
+            telefone: data.telefoneConjuge.replace(/\D/g, ""),
+            email: data.emailConjuge || null,
+            sexo: (data.sexoConjuge as Sexo) || null,
+            fotoUrl: null,
+            dataNascimento: data.dataNascimentoConjuge ? Timestamp.fromDate(data.dataNascimentoConjuge) : null,
+            tipo: data.tipo as TipoMembro,
+            cargo: null,
+            cargoDescricao: null,
+            estadoCivil: data.estadoCivil as EstadoCivil,
+            nomeConjuge: data.nome.trim(),
+            conjugeId: membro.id,
+            temFuncaoIgreja: false,
+            funcoes: null,
+            funcaoDescricao: null,
+            departamentos: null,
+            departamentoDescricao: null,
+            ehLider: false,
+            liderDe: null,
+            endereco: {
+              logradouro: data.logradouro,
+              numero: data.numero,
+              complemento: data.complemento || null,
+              bairro: data.bairro,
+              cidade: data.cidade,
+              estado: data.estado,
+              cep: data.cep.replace(/\D/g, ""),
+            },
+            coordenadas: coordenadas || null,
+            observacoes: null,
+            ativo: true,
+            unidadeId: unidadeIdParam,
+            dataCadastro: Timestamp.now(),
+            criadoPor: user.uid,
+          };
+          
+          // Cadastra o cônjuge
+          const novoConjugeRef = await addDoc(getMembrosCollection(igrejaId, unidadeIdParam), conjugeData);
+          
+          // Atualiza o membroData com o ID do novo cônjuge
+          membroData.conjugeId = novoConjugeRef.id;
+          membroData.nomeConjuge = data.nomeConjuge.trim();
+          
+          await updateDoc(membroRef, membroData);
+          toast.success("Membro atualizado e cônjuge cadastrado com sucesso!");
+        } else {
+          await updateDoc(membroRef, membroData);
+          toast.success("Membro atualizado com sucesso!");
+        }
       } else {
         // Create new member na unidade selecionada
         const membroPrincipalRef = await addDoc(getMembrosCollection(igrejaId, selectedUnidadeId), {
