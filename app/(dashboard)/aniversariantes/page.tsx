@@ -185,23 +185,10 @@ export default function AniversariantesPage() {
         </Card>
       )}
 
-      <div className="grid gap-4 sm:gap-6 lg:grid-cols-[320px_1fr]">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-[300px_1fr]">
         {/* Calendar */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-2 sm:px-6">
-            <CardTitle className="text-sm sm:text-base font-medium">
-              {format(currentMonth, "MMMM yyyy", { locale: ptBR })}
-            </CardTitle>
-            <div className="flex gap-1">
-              <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={previousMonth}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={nextMonth}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-1 sm:p-3">
+        <Card className="overflow-hidden">
+          <CardContent className="p-2 sm:p-4">
             <Calendar
               mode="single"
               selected={selectedDate}
@@ -209,6 +196,7 @@ export default function AniversariantesPage() {
               month={currentMonth}
               onMonthChange={setCurrentMonth}
               locale={ptBR}
+              captionLayout="buttons"
               modifiers={{
                 birthday: diasComAniversario,
               }}
@@ -216,7 +204,7 @@ export default function AniversariantesPage() {
                 birthday: "bg-amber-100 dark:bg-amber-900/30 font-bold text-amber-700 dark:text-amber-400",
               }}
             />
-            <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground px-1">
+            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
               <div className="h-3 w-3 rounded bg-amber-100 dark:bg-amber-900/30" />
               <span>Dias com aniversariantes</span>
             </div>
@@ -314,31 +302,31 @@ function AniversarianteCard({ membro, showDay = false }: { membro: Membro; showD
 
   return (
     <div
-      className={`flex items-center gap-4 rounded-lg border p-3 transition-colors ${
+      className={`flex items-center gap-2 sm:gap-4 rounded-lg border p-2 sm:p-3 transition-colors ${
         isToday ? "border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20" : ""
       }`}
     >
-      <div className="relative">
-        <Avatar className="h-12 w-12 border-2" style={{ borderColor: CORES_TIPO[membro.tipo] }}>
+      <div className="relative shrink-0">
+        <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2" style={{ borderColor: CORES_TIPO[membro.tipo] }}>
           <AvatarImage src={membro.fotoUrl || undefined} alt={membro.nome} />
           <AvatarFallback style={{ backgroundColor: CORES_TIPO[membro.tipo], color: "white" }}>
             {membro.nome.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
           </AvatarFallback>
         </Avatar>
         {isToday && (
-          <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-white">
-            <Cake className="h-3 w-3" />
+          <div className="absolute -bottom-1 -right-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-amber-500 text-white">
+            <Cake className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
           </div>
         )}
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="font-medium truncate">{membro.nome}</p>
-          <Badge variant="outline" className="shrink-0" style={{ borderColor: CORES_TIPO[membro.tipo], color: CORES_TIPO[membro.tipo] }}>
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+          <p className="font-medium text-sm sm:text-base truncate max-w-[120px] sm:max-w-none">{membro.nome}</p>
+          <Badge variant="outline" className="shrink-0 text-[10px] sm:text-xs px-1 sm:px-2" style={{ borderColor: CORES_TIPO[membro.tipo], color: CORES_TIPO[membro.tipo] }}>
             {TIPOS_MEMBRO[membro.tipo]}
           </Badge>
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-4 gap-y-0.5 text-xs sm:text-sm text-muted-foreground">
           {showDay && (
             <span className="font-medium text-foreground">
               Dia {birthDate.getDate()}
@@ -351,7 +339,7 @@ function AniversarianteCard({ membro, showDay = false }: { membro: Membro; showD
           </span>
         </div>
       </div>
-      <Button variant="ghost" size="icon" asChild>
+      <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8 sm:h-10 sm:w-10" asChild>
         <Link href={`/membros/${membro.id}`}>
           <Eye className="h-4 w-4" />
           <span className="sr-only">Ver perfil</span>
