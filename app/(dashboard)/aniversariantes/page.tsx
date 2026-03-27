@@ -187,21 +187,21 @@ export default function AniversariantesPage() {
 
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-[320px_1fr]">
         {/* Calendar */}
-        <Card className="overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 sm:px-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-2 sm:px-6">
             <CardTitle className="text-sm sm:text-base font-medium">
               {format(currentMonth, "MMMM yyyy", { locale: ptBR })}
             </CardTitle>
             <div className="flex gap-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={previousMonth}>
+              <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={previousMonth}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={nextMonth}>
+              <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={nextMonth}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="p-2 sm:p-3">
+          <CardContent className="p-1 sm:p-3">
             <Calendar
               mode="single"
               selected={selectedDate}
@@ -209,7 +209,6 @@ export default function AniversariantesPage() {
               month={currentMonth}
               onMonthChange={setCurrentMonth}
               locale={ptBR}
-              className="w-full mx-auto [--cell-size:2rem] sm:[--cell-size:2.5rem]"
               modifiers={{
                 birthday: diasComAniversario,
               }}
@@ -217,7 +216,7 @@ export default function AniversariantesPage() {
                 birthday: "bg-amber-100 dark:bg-amber-900/30 font-bold text-amber-700 dark:text-amber-400",
               }}
             />
-            <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground px-1">
               <div className="h-3 w-3 rounded bg-amber-100 dark:bg-amber-900/30" />
               <span>Dias com aniversariantes</span>
             </div>
