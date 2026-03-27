@@ -141,6 +141,7 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
 
   const form = useForm<MembroFormData>({
     resolver: zodResolver(membroSchema),
+    mode: "onSubmit",
     defaultValues: {
       nome: membro?.nome || "",
       telefone: membro?.telefone || "",
@@ -557,7 +558,15 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
+          console.log("[v0] Erros de validação do formulário:", errors);
+          // Mostra o primeiro erro encontrado
+          const firstError = Object.entries(errors)[0];
+          if (firstError) {
+            const [field, error] = firstError;
+            toast.error(`Erro no campo "${field}": ${error?.message || "valor inválido"}`);
+          }
+        })} className="space-y-6">
         {/* Photo */}
         <Card>
           <CardHeader>
