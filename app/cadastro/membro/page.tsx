@@ -328,11 +328,9 @@ function CadastroMembroContent() {
             <p className="mt-2 text-muted-foreground">
               Seu cadastro foi recebido com sucesso. Seja bem-vindo à nossa igreja!
             </p>
-            {igrejaInfo && (
-              <p className="mt-4 font-medium text-primary">
-                {igrejaInfo.nome}
-              </p>
-            )}
+            <p className="mt-4 font-medium text-primary">
+              {unidadeAtualNome || igrejaInfo?.nome}
+            </p>
           </CardContent>
         </Card>
       </div>
