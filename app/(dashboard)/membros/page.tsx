@@ -74,6 +74,7 @@ import {
   CARGOS_MEMBRO,
   TIPOS_UNIDADE,
 } from "@/lib/types";
+import { QRCodeModal } from "@/components/qr-code-modal";
 
 // Membro com unidadeId para rastreamento
 interface MembroComUnidade extends Membro {
@@ -202,32 +203,12 @@ export default function MembrosPage() {
         </div>
         <div className="flex items-center gap-2">
           {canEdit && igrejaId && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Link2 className="mr-2 h-4 w-4" />
-                  Link de Cadastro
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => {
-                  const url = `${window.location.origin}/cadastro/membro?igreja=${igrejaId}`;
-                  navigator.clipboard.writeText(url);
-                  toast.success("Link copiado!");
-                }}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copiar Link
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => {
-                  const url = `${window.location.origin}/cadastro/membro?igreja=${igrejaId}`;
-                  const text = `Cadastre-se como membro da nossa igreja: ${url}`;
-                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
-                }}>
-                  <Share2 className="mr-2 h-4 w-4" />
-                  Compartilhar no WhatsApp
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <QRCodeModal
+              url={`${typeof window !== "undefined" ? window.location.origin : ""}/cadastro/membro?igreja=${igrejaId}`}
+              title="Cadastro de Membro"
+              description="Escaneie o QR Code ou compartilhe o link para membros se cadastrarem"
+              triggerLabel="QR Code Membro"
+            />
           )}
           {canEdit && (
             <Button asChild>
