@@ -64,22 +64,23 @@ const membroSchema = z.object({
   nome: z.string().min(3, "Nome deve ter pelo menos 3 caracteres"),
   telefone: z.string().min(10, "Telefone inválido"),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
-  sexo: z.enum(["masculino", "feminino"]).optional(),
+  sexo: z.enum(["masculino", "feminino"]).nullable().optional(),
   dataNascimento: z.date().optional(),
   tipo: z.enum(["visitante", "congregado", "membro", "obreiro", "lider"]),
   cargo: z
     .enum(["pastor", "evangelista", "presbitero", "diacono", "auxiliar_escala", "outro"])
+    .nullable()
     .optional(),
   cargoDescricao: z.string().optional(),
   // Estado civil e cônjuge
-  estadoCivil: z.enum(["solteiro", "casado", "amasiado", "divorciado", "viuvo"]).optional(),
+  estadoCivil: z.enum(["solteiro", "casado", "amasiado", "divorciado", "viuvo"]).nullable().optional(),
   nomeConjuge: z.string().optional(),
   conjugeEhMembro: z.boolean().optional(),
   conjugeIdSelecionado: z.string().optional(),
   adicionarNovoConjuge: z.boolean().optional(),
   telefoneConjuge: z.string().optional(),
   emailConjuge: z.string().email("Email inválido").optional().or(z.literal("")),
-  sexoConjuge: z.enum(["masculino", "feminino"]).optional(),
+  sexoConjuge: z.enum(["masculino", "feminino"]).nullable().optional(),
   dataNascimentoConjuge: z.date().optional(),
   // Campos para funções e departamentos
   temFuncaoIgreja: z.boolean().optional(),
