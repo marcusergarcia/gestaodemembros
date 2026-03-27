@@ -61,6 +61,10 @@ function CadastroMembroContent() {
   const [cidade, setCidade] = useState("");
   const [estado, setEstado] = useState("");
 
+  // Coordenadas
+  const [coordenadas, setCoordenadas] = useState<{ lat: number; lng: number } | null>(null);
+  const [loadingGeo, setLoadingGeo] = useState(false);
+
   // Outros
   const [batizado, setBatizado] = useState(false);
   const [observacoes, setObservacoes] = useState("");
@@ -152,6 +156,47 @@ function CadastroMembroContent() {
     }
   };
 
+  // Geocode - Localizar no mapa
+  const localizarNoMapa = async () => {
+    if (!logradouro || !numero || !cidade || !estado) {
+      toast.error("Preencha o endereço completo antes de localizar no mapa");
+      return;
+    }
+    
+    const partesEndereco = [
+      logradouro,
+      numero,
+      bairro,
+      cidade,
+      estado,
+      "Brasil"
+    ].filter(Boolean);
+    
+    const endereco = partesEndereco.join(", ");
+
+    setLoadingGeo(true);
+    try {
+      const response = await fetch("/api/geocode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endereco }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setCoordenadas({ lat: data.lat, lng: data.lng });
+        toast.success("Localização encontrada no mapa!");
+      } else {
+        toast.error(data.error || "Não foi possível localizar o endereço");
+      }
+    } catch {
+      toast.error("Erro ao buscar localização. Verifique sua conexão.");
+    } finally {
+      setLoadingGeo(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -221,6 +266,11 @@ function CadastroMembroContent() {
           cidade: cidade || "",
           estado: estado || "",
         };
+      }
+
+      // Coordenadas para o mapa
+      if (coordenadas) {
+        membroData.coordenadas = coordenadas;
       }
 
       await addDoc(membrosRef, membroData);
@@ -526,6 +576,33 @@ function CadastroMembroContent() {
                   />
                 </div>
               </div>
+
+              {/* Botão Localizar no Mapa */}
+              <div className="flex items-center justify-between pt-2">
+                <div>
+                  <p className="text-sm font-medium">Localização no Mapa</p>
+                  <p className="text-xs text-muted-foreground">
+                    {coordenadas 
+                      ? "Localização encontrada" 
+                      : "Clique para localizar o endereço no mapa"}
+                  </p>
+                </div>
+                <Button 
+                  type="button" 
+                  variant={coordenadas ? "outline" : "default"}
+                  onClick={localizarNoMapa}
+                  disabled={loadingGeo}
+                >
+                  <MapPin className="mr-2 h-4 w-4" />
+                  {loadingGeo ? "Localizando..." : coordenadas ? "Localizado" : "Localizar no Mapa"}
+                </Button>
+              </div>
+
+              {coordenadas && (
+                <p className="text-xs text-muted-foreground text-center">
+                  Coordenadas: {coordenadas.lat.toFixed(6)}, {coordenadas.lng.toFixed(6)}
+                </p>
+              )}
             </CardContent>
           </Card>
 
