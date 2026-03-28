@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useEffect, useState } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -16,6 +17,8 @@ import { useAuth } from "@/contexts/auth-context";
 import { Church } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TIPOS_UNIDADE } from "@/lib/types";
+import { getDoc } from "firebase/firestore";
+import { getMembroDoc, getVisitanteDoc } from "@/lib/firestore";
 
 const pathNames: Record<string, string> = {
   dashboard: "Dashboard",
@@ -40,7 +43,72 @@ const pathNames: Record<string, string> = {
 export function Header() {
   const pathname = usePathname();
   const segments = pathname.split("/").filter(Boolean);
-  const { unidadeAtual } = useAuth();
+  const { unidadeAtual, igrejaId, unidadesAcessiveis } = useAuth();
+  const [entityNames, setEntityNames] = useState<Record<string, string>>({});
+
+  // Busca o nome do membro/visitante quando a URL contém um ID
+  useEffect(() => {
+    async function fetchEntityNames() {
+      if (!igrejaId || unidadesAcessiveis.length === 0) return;
+
+      const newNames: Record<string, string> = {};
+      
+      for (let i = 0; i < segments.length; i++) {
+        const segment = segments[i];
+        const prevSegment = segments[i - 1];
+        
+        // Verifica se o segmento parece ser um ID (não está no dicionário de nomes)
+        if (!pathNames[segment] && prevSegment) {
+          // Se o segmento anterior é "membros", busca o membro
+          if (prevSegment === "membros") {
+            for (const unidadeId of unidadesAcessiveis) {
+              try {
+                const docRef = getMembroDoc(igrejaId, unidadeId, segment);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                  const data = docSnap.data();
+                  newNames[segment] = data.nome || segment;
+                  break;
+                }
+              } catch {
+                // Continua tentando outras unidades
+              }
+            }
+          }
+          // Se o segmento anterior é "visitantes", busca o visitante
+          else if (prevSegment === "visitantes") {
+            for (const unidadeId of unidadesAcessiveis) {
+              try {
+                const docRef = getVisitanteDoc(igrejaId, unidadeId, segment);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                  const data = docSnap.data();
+                  newNames[segment] = data.nome || segment;
+                  break;
+                }
+              } catch {
+                // Continua tentando outras unidades
+              }
+            }
+          }
+        }
+      }
+      
+      setEntityNames(newNames);
+    }
+
+    fetchEntityNames();
+  }, [pathname, igrejaId, unidadesAcessiveis, segments]);
+
+  // Função para obter o nome do segmento
+  const getSegmentName = (segment: string) => {
+    // Primeiro verifica se é um nome de entidade buscado
+    if (entityNames[segment]) {
+      return entityNames[segment];
+    }
+    // Depois verifica se é um nome fixo
+    return pathNames[segment] || segment;
+  };
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b bg-background px-4">
@@ -52,7 +120,7 @@ export function Header() {
             {segments.map((segment, index) => {
               const isLast = index === segments.length - 1;
               const href = "/" + segments.slice(0, index + 1).join("/");
-              const name = pathNames[segment] || segment;
+              const name = getSegmentName(segment);
 
               return (
                 <React.Fragment key={segment}>

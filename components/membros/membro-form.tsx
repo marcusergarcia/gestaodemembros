@@ -150,7 +150,12 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
       telefone: membro?.telefone || "",
       email: membro?.email || "",
       sexo: membro?.sexo || undefined,
-      dataNascimento: membro?.dataNascimento?.toDate(),
+      dataNascimento: membro?.dataNascimento ? (() => {
+        // Corrige o problema de fuso horário: extrai apenas a data (ano, mês, dia)
+        // e cria uma nova data no fuso local para evitar deslocamento de 1 dia
+        const d = membro.dataNascimento.toDate();
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+      })() : undefined,
       tipo: membro?.tipo || "visitante",
       cargo: membro?.cargo,
       cargoDescricao: membro?.cargoDescricao || "",
@@ -384,7 +389,12 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
         email: data.email || null,
         sexo: (data.sexo as Sexo) || null,
         fotoUrl: fotoBase64 || null,
-        dataNascimento: data.dataNascimento ? Timestamp.fromDate(data.dataNascimento) : null,
+        dataNascimento: data.dataNascimento ? (() => {
+          // Cria uma data ao meio-dia para evitar problemas de fuso horário
+          const d = data.dataNascimento;
+          const dateAtNoon = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+          return Timestamp.fromDate(dateAtNoon);
+        })() : null,
         tipo: data.tipo as TipoMembro,
         cargo: showCargo ? (data.cargo as CargoMembro) : null,
         cargoDescricao: data.cargo === "outro" ? data.cargoDescricao : null,
@@ -443,7 +453,11 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
             email: data.emailConjuge || null,
             sexo: (data.sexoConjuge as Sexo) || null,
             fotoUrl: null,
-            dataNascimento: data.dataNascimentoConjuge ? Timestamp.fromDate(data.dataNascimentoConjuge) : null,
+            dataNascimento: data.dataNascimentoConjuge ? (() => {
+              const d = data.dataNascimentoConjuge;
+              const dateAtNoon = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+              return Timestamp.fromDate(dateAtNoon);
+            })() : null,
             tipo: tipoConjugeFinal,
             cargo: showCargoConjugeFinal ? (data.cargoConjuge as CargoMembro) : null,
             cargoDescricao: null,
@@ -516,7 +530,11 @@ export function MembroForm({ membro, unidadeIdParam }: MembroFormProps) {
             email: data.emailConjuge || null,
             sexo: (data.sexoConjuge as Sexo) || null,
             fotoUrl: null,
-            dataNascimento: data.dataNascimentoConjuge ? Timestamp.fromDate(data.dataNascimentoConjuge) : null,
+            dataNascimento: data.dataNascimentoConjuge ? (() => {
+              const d = data.dataNascimentoConjuge;
+              const dateAtNoon = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+              return Timestamp.fromDate(dateAtNoon);
+            })() : null,
             tipo: tipoConjugeFinalNovo,
             cargo: showCargoConjugeFinalNovo ? (data.cargoConjuge as CargoMembro) : null,
             cargoDescricao: null,
