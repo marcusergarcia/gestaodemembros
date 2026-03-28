@@ -15,6 +15,7 @@ import {
   HeartHandshake,
   BarChart3,
   Building2,
+  Home,
 } from "lucide-react";
 import {
   Sidebar,
@@ -53,6 +54,11 @@ const menuItems = [
     title: "Mapa",
     href: "/mapa",
     icon: Map,
+  },
+  {
+    title: "Famílias",
+    href: "/familias",
+    icon: Home,
   },
   {
     title: "Grupos",

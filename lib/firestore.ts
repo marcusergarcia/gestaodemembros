@@ -16,6 +16,7 @@ export const COLLECTIONS = {
   GRUPOS: "grupos",
   ACOMPANHAMENTOS: "acompanhamentos",
   USUARIOS: "usuarios",
+  FAMILIAS: "familias",
 } as const;
 
 /**
@@ -211,6 +212,29 @@ export async function carregarTodasUnidades(igrejaId: string): Promise<Unidade[]
   });
   
   return unidades;
+}
+
+// ============ FAMÍLIAS ============
+
+/**
+ * Retorna a referência da coleção de famílias de uma unidade
+ */
+export function getFamiliasCollection(igrejaId: string, unidadeId: string) {
+  if (!db) throw new Error("Firebase não configurado");
+  if (!igrejaId) throw new Error("igrejaId é obrigatório");
+  if (!unidadeId) throw new Error("unidadeId é obrigatório");
+  return collection(db, COLLECTIONS.IGREJAS, igrejaId, COLLECTIONS.UNIDADES, unidadeId, COLLECTIONS.FAMILIAS);
+}
+
+/**
+ * Retorna a referência do documento de uma família
+ */
+export function getFamiliaDoc(igrejaId: string, unidadeId: string, familiaId: string) {
+  if (!db) throw new Error("Firebase não configurado");
+  if (!igrejaId) throw new Error("igrejaId é obrigatório");
+  if (!unidadeId) throw new Error("unidadeId é obrigatório");
+  if (!familiaId) throw new Error("familiaId é obrigatório");
+  return doc(db, COLLECTIONS.IGREJAS, igrejaId, COLLECTIONS.UNIDADES, unidadeId, COLLECTIONS.FAMILIAS, familiaId);
 }
 
 
