@@ -42,15 +42,32 @@ const pathNames: Record<string, string> = {
 
 export function Header() {
   const pathname = usePathname();
-  const segments = pathname.split("/").filter(Boolean);
+  const segments = React.useMemo(() => pathname.split("/").filter(Boolean), [pathname]);
   const { unidadeAtual, igrejaId, unidadesAcessiveis } = useAuth();
   const [entityNames, setEntityNames] = useState<Record<string, string>>({});
 
+  // Verifica se há algum ID potencial na URL (segmento que não é um nome conhecido)
+  const hasEntityId = React.useMemo(() => {
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i];
+      const prevSegment = segments[i - 1];
+      if (!pathNames[segment] && (prevSegment === "membros" || prevSegment === "visitantes")) {
+        return true;
+      }
+    }
+    return false;
+  }, [segments]);
+
   // Busca o nome do membro/visitante quando a URL contém um ID
   useEffect(() => {
-    async function fetchEntityNames() {
-      if (!igrejaId || unidadesAcessiveis.length === 0) return;
+    // Só executa se houver um ID potencial na URL
+    if (!hasEntityId || !igrejaId || !unidadesAcessiveis || unidadesAcessiveis.length === 0) {
+      return;
+    }
 
+    let isMounted = true;
+    
+    async function fetchEntityNames() {
       const newNames: Record<string, string> = {};
       
       for (let i = 0; i < segments.length; i++) {
@@ -94,11 +111,17 @@ export function Header() {
         }
       }
       
-      setEntityNames(newNames);
+      if (isMounted) {
+        setEntityNames(newNames);
+      }
     }
 
     fetchEntityNames();
-  }, [pathname, igrejaId, unidadesAcessiveis, segments]);
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [hasEntityId, igrejaId, unidadesAcessiveis, segments]);
 
   // Função para obter o nome do segmento
   const getSegmentName = (segment: string) => {
