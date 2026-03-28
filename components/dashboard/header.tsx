@@ -18,12 +18,13 @@ import { Church } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TIPOS_UNIDADE } from "@/lib/types";
 import { getDoc } from "firebase/firestore";
-import { getMembroDoc, getVisitanteDoc } from "@/lib/firestore";
+import { getMembroDoc, getVisitanteDoc, getFamiliaDoc } from "@/lib/firestore";
 
 const pathNames: Record<string, string> = {
   dashboard: "Dashboard",
   membros: "Membros",
   visitantes: "Visitantes",
+  familias: "Famílias",
   novo: "Novo Cadastro",
   nova: "Nova",
   mapa: "Mapa",
@@ -51,7 +52,7 @@ export function Header() {
     for (let i = 0; i < segments.length; i++) {
       const segment = segments[i];
       const prevSegment = segments[i - 1];
-      if (!pathNames[segment] && (prevSegment === "membros" || prevSegment === "visitantes")) {
+      if (!pathNames[segment] && (prevSegment === "membros" || prevSegment === "visitantes" || prevSegment === "familias")) {
         return true;
       }
     }
@@ -97,6 +98,22 @@ export function Header() {
             for (const unidadeId of unidadesAcessiveis) {
               try {
                 const docRef = getVisitanteDoc(igrejaId, unidadeId, segment);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                  const data = docSnap.data();
+                  newNames[segment] = data.nome || segment;
+                  break;
+                }
+              } catch {
+                // Continua tentando outras unidades
+              }
+            }
+          }
+          // Se o segmento anterior é "familias", busca a família
+          else if (prevSegment === "familias") {
+            for (const unidadeId of unidadesAcessiveis) {
+              try {
+                const docRef = getFamiliaDoc(igrejaId, unidadeId, segment);
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                   const data = docSnap.data();

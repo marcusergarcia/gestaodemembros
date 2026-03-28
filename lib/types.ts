@@ -327,6 +327,57 @@ export const CORES_CARGO: Record<CargoMembro, string> = {
   outro: "#6b7280", // gray
 };
 
+// ============ FAMÍLIAS ============
+
+export type Parentesco = 
+  | "filho"
+  | "filha"
+  | "enteado"
+  | "enteada"
+  | "neto"
+  | "neta"
+  | "sobrinho"
+  | "sobrinha"
+  | "outro";
+
+export interface Dependente {
+  id: string;
+  nome: string;
+  dataNascimento?: Timestamp;
+  sexo?: Sexo;
+  parentesco: Parentesco;
+  membroVinculadoId?: string; // Se vinculado a um membro existente
+  membroVinculadoNome?: string;
+}
+
+export interface Familia {
+  id: string;
+  nome: string; // Nome da família (ex: "Família Silva Santos")
+  responsavel1Id: string; // ID do membro responsável 1
+  responsavel1Nome: string;
+  responsavel2Id?: string; // ID do membro responsável 2 (opcional)
+  responsavel2Nome?: string;
+  dependentes: Dependente[];
+  observacoes?: string;
+  unidadeId: string;
+  dataCriacao: Timestamp;
+  dataAtualizacao?: Timestamp;
+  criadoPor: string;
+  ativo: boolean;
+}
+
+export const PARENTESCOS: Record<Parentesco, string> = {
+  filho: "Filho",
+  filha: "Filha",
+  enteado: "Enteado",
+  enteada: "Enteada",
+  neto: "Neto",
+  neta: "Neta",
+  sobrinho: "Sobrinho",
+  sobrinha: "Sobrinha",
+  outro: "Outro",
+};
+
 // ============ VISITANTES ============
 
 export interface Acompanhante {
