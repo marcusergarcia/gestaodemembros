@@ -33,6 +33,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { NIVEIS_ACESSO } from "@/lib/types";
+import { UnidadeSelector } from "./unidade-selector";
 
 const menuItems = [
   {
@@ -137,6 +138,9 @@ export function AppSidebar() {
             </span>
           </div>
         </Link>
+        <div className="mt-3">
+          <UnidadeSelector />
+        </div>
       </SidebarHeader>
 
       <SidebarContent>

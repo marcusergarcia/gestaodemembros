@@ -61,9 +61,6 @@ import {
   Phone,
   MapPin,
   Building2,
-  Link2,
-  Copy,
-  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -75,6 +72,7 @@ import {
   TIPOS_UNIDADE,
 } from "@/lib/types";
 import { QRCodeModal } from "@/components/qr-code-modal";
+import { useUnidadeSelecionada } from "@/contexts/unidade-selecionada-context";
 
 // Membro com unidadeId para rastreamento
 interface MembroComUnidade extends Membro {
@@ -82,7 +80,8 @@ interface MembroComUnidade extends Membro {
 }
 
 export default function MembrosPage() {
-  const { usuario, igrejaId, unidadeAtual, unidadesAcessiveis, todasUnidades, nivelAcesso, temAcessoTotal } = useAuth();
+  const { usuario, igrejaId, unidadesAcessiveis, todasUnidades, nivelAcesso, temAcessoTotal } = useAuth();
+  const { unidadeSelecionada, visualizandoTodas } = useUnidadeSelecionada();
   const [membros, setMembros] = useState<MembroComUnidade[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -93,16 +92,25 @@ export default function MembrosPage() {
 
   const canEdit = nivelAcesso === "admin" || nivelAcesso === "full";
 
+  // Determina quais unidades carregar baseado na seleção
+  const unidadesParaCarregar = visualizandoTodas 
+    ? unidadesAcessiveis 
+    : unidadeSelecionada 
+      ? [unidadeSelecionada.id] 
+      : unidadesAcessiveis;
+
   useEffect(() => {
-    if (!igrejaId || unidadesAcessiveis.length === 0) {
+    if (!igrejaId || unidadesParaCarregar.length === 0) {
       setLoading(false);
       return;
     }
 
+    setLoading(true);
+    setMembros([]);
     const unsubscribes: (() => void)[] = [];
 
-    // Escuta membros de cada unidade acessível
-    unidadesAcessiveis.forEach((unidadeId) => {
+    // Escuta membros das unidades selecionadas
+    unidadesParaCarregar.forEach((unidadeId) => {
       const membrosRef = getMembrosCollection(igrejaId, unidadeId);
       const q = query(membrosRef, orderBy("nome", "asc"));
 
@@ -132,7 +140,7 @@ export default function MembrosPage() {
     return () => {
       unsubscribes.forEach((unsubscribe) => unsubscribe());
     };
-  }, [igrejaId, unidadesAcessiveis]);
+  }, [igrejaId, unidadesParaCarregar.join(",")]);
 
   const filteredMembros = membros.filter((membro) => {
     // Only show active members (exclude visitantes - they have their own page now)
@@ -198,15 +206,19 @@ export default function MembrosPage() {
           <h1 className="text-2xl font-bold tracking-tight">Membros</h1>
           <p className="text-muted-foreground">
             {filteredMembros.length} membro{filteredMembros.length !== 1 && "s"}{" "}
-            {temAcessoTotal() ? "em todas as unidades" : `em ${unidadesAcessiveis.length} unidade(s)`}
+            {visualizandoTodas 
+              ? "em todas as unidades" 
+              : unidadeSelecionada 
+                ? `em ${unidadeSelecionada.nome}` 
+                : `em ${unidadesParaCarregar.length} unidade(s)`}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {canEdit && igrejaId && unidadeAtual && (
+          {canEdit && igrejaId && unidadeSelecionada && (
             <QRCodeModal
-              url={`${typeof window !== "undefined" ? window.location.origin : ""}/cadastro/membro?igreja=${igrejaId}&unidade=${unidadeAtual.id}`}
+              url={`${typeof window !== "undefined" ? window.location.origin : ""}/cadastro/membro?igreja=${igrejaId}&unidade=${unidadeSelecionada.id}`}
               title="Cadastro de Membro"
-              description={`Cadastro para: ${unidadeAtual.nome}`}
+              description={`Cadastro para: ${unidadeSelecionada.nome}`}
               triggerLabel="QR Code Membro"
             />
           )}

@@ -2,27 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { query, onSnapshot, orderBy, where } from "firebase/firestore";
+import { query, onSnapshot, orderBy, collection, getDocs } from "firebase/firestore";
 import { getUnidadesCollection } from "@/lib/firestore";
+import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/auth-context";
 import { Empty, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
@@ -34,6 +20,8 @@ import {
   Edit,
   ChevronRight,
   MapPin,
+  Users,
+  Phone,
 } from "lucide-react";
 import {
   Unidade,
@@ -47,17 +35,20 @@ const CORES_TIPO_UNIDADE: Record<TipoUnidade, string> = {
   subcongregacao: "#9333ea",
 };
 
+interface UnidadeComContagem extends Unidade {
+  totalMembros: number;
+}
+
 export default function UnidadesPage() {
-  const { usuario, igrejaId, nivelAcesso, unidadesAcessiveis, temAcessoTotal } = useAuth();
-  const [unidades, setUnidades] = useState<Unidade[]>([]);
+  const { igrejaId, nivelAcesso, unidadesAcessiveis, temAcessoTotal } = useAuth();
+  const [unidades, setUnidades] = useState<UnidadeComContagem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterTipo, setFilterTipo] = useState<TipoUnidade | "todos">("todos");
 
   const canManageUnidades = nivelAcesso === "full" || nivelAcesso === "admin";
 
   useEffect(() => {
-    if (!igrejaId) {
+    if (!igrejaId || !db) {
       setLoading(false);
       return;
     }
@@ -65,11 +56,28 @@ export default function UnidadesPage() {
     const unidadesRef = getUnidadesCollection(igrejaId);
     const q = query(unidadesRef, orderBy("nome", "asc"));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const unidadesData: Unidade[] = [];
-      snapshot.forEach((docSnap) => {
-        unidadesData.push({ id: docSnap.id, ...docSnap.data() } as Unidade);
-      });
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      const unidadesData: UnidadeComContagem[] = [];
+      
+      for (const docSnap of snapshot.docs) {
+        const unidadeData = { id: docSnap.id, ...docSnap.data() } as Unidade;
+        
+        // Conta membros desta unidade
+        let totalMembros = 0;
+        try {
+          const membrosRef = collection(db!, "igrejas", igrejaId, "unidades", unidadeData.id, "membros");
+          const membrosSnapshot = await getDocs(membrosRef);
+          totalMembros = membrosSnapshot.docs.filter(m => m.data().ativo !== false).length;
+        } catch {
+          totalMembros = 0;
+        }
+
+        unidadesData.push({
+          ...unidadeData,
+          totalMembros
+        });
+      }
+      
       setUnidades(unidadesData);
       setLoading(false);
     });
@@ -79,24 +87,27 @@ export default function UnidadesPage() {
 
   // Filtra unidades baseado no acesso do usuário
   const unidadesVisiveis = unidades.filter((unidade) => {
-    // Se tem acesso total, vê todas
     if (temAcessoTotal()) return true;
-    // Senão, só vê as unidades acessíveis
     return unidadesAcessiveis.includes(unidade.id);
   });
 
+  // Filtra por busca
   const filteredUnidades = unidadesVisiveis.filter((unidade) => {
     if (!unidade.ativa) return false;
 
     const matchesSearch =
       unidade.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
       unidade.endereco?.bairro?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      unidade.endereco?.cidade?.toLowerCase().includes(searchTerm.toLowerCase());
+      unidade.endereco?.cidade?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      unidade.dirigente?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesTipo = filterTipo === "todos" || unidade.tipo === filterTipo;
-
-    return matchesSearch && matchesTipo;
+    return matchesSearch;
   });
+
+  // Separa por tipo
+  const sedes = filteredUnidades.filter(u => u.tipo === "sede");
+  const congregacoes = filteredUnidades.filter(u => u.tipo === "congregacao");
+  const subcongregacoes = filteredUnidades.filter(u => u.tipo === "subcongregacao");
 
   // Organiza em hierarquia para exibição
   const getUnidadePai = (unidadeId: string | undefined) => {
@@ -120,7 +131,117 @@ export default function UnidadesPage() {
     sedes: unidadesVisiveis.filter(u => u.tipo === "sede" && u.ativa).length,
     congregacoes: unidadesVisiveis.filter(u => u.tipo === "congregacao" && u.ativa).length,
     subcongregacoes: unidadesVisiveis.filter(u => u.tipo === "subcongregacao" && u.ativa).length,
+    totalMembros: unidadesVisiveis.reduce((acc, u) => acc + u.totalMembros, 0),
   };
+
+  const renderUnidadeCard = (unidade: UnidadeComContagem) => (
+    <Card key={unidade.id} className="hover:shadow-md transition-shadow">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div 
+              className="flex h-10 w-10 items-center justify-center rounded-lg text-white shrink-0"
+              style={{ backgroundColor: CORES_TIPO_UNIDADE[unidade.tipo] }}
+            >
+              <Building2 className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-semibold truncate">{unidade.nome}</h3>
+              {unidade.dirigente && (
+                <p className="text-sm text-muted-foreground truncate">{unidade.dirigente}</p>
+              )}
+              {unidade.unidadePaiId && (
+                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                  <ChevronRight className="h-3 w-3" />
+                  <span className="truncate">{getHierarquia(unidade)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+              <Link href={`/unidades/${unidade.id}`}>
+                <Eye className="h-4 w-4" />
+                <span className="sr-only">Ver detalhes</span>
+              </Link>
+            </Button>
+            {canManageUnidades && (
+              <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                <Link href={`/unidades/${unidade.id}/editar`}>
+                  <Edit className="h-4 w-4" />
+                  <span className="sr-only">Editar</span>
+                </Link>
+              </Button>
+            )}
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-4 mt-4 pt-3 border-t text-sm text-muted-foreground">
+          <div className="flex items-center gap-1">
+            <Users className="h-4 w-4" />
+            <span>{unidade.totalMembros} membros</span>
+          </div>
+          {unidade.endereco?.cidade && (
+            <div className="flex items-center gap-1">
+              <MapPin className="h-4 w-4" />
+              <span className="truncate">{unidade.endereco.cidade}</span>
+            </div>
+          )}
+          {unidade.telefone && (
+            <div className="flex items-center gap-1">
+              <Phone className="h-4 w-4" />
+              <span>{unidade.telefone}</span>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderUnidadeSection = (
+    tipo: TipoUnidade, 
+    unidadesLista: UnidadeComContagem[],
+    titulo: string,
+    descricao: string
+  ) => (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div 
+            className="h-4 w-4 rounded-full" 
+            style={{ backgroundColor: CORES_TIPO_UNIDADE[tipo] }}
+          />
+          <div>
+            <h2 className="text-lg font-semibold">{titulo}</h2>
+            <p className="text-sm text-muted-foreground">{descricao}</p>
+          </div>
+        </div>
+        {canManageUnidades && (
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/unidades/nova?tipo=${tipo}`}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nova {TIPOS_UNIDADE[tipo]}
+            </Link>
+          </Button>
+        )}
+      </div>
+
+      {unidadesLista.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Building2 className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+            <p className="text-sm text-muted-foreground">
+              Nenhuma {TIPOS_UNIDADE[tipo].toLowerCase()} cadastrada
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {unidadesLista.map(renderUnidadeCard)}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -143,10 +264,10 @@ export default function UnidadesPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground">Total</div>
+            <div className="text-sm text-muted-foreground">Total de Unidades</div>
             <div className="text-2xl font-bold">{stats.total}</div>
           </CardContent>
         </Card>
@@ -186,40 +307,33 @@ export default function UnidadesPage() {
             <div className="text-2xl font-bold">{stats.subcongregacoes}</div>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Total de Membros</span>
+            </div>
+            <div className="text-2xl font-bold">{stats.totalMembros}</div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Filters */}
+      {/* Search */}
       <Card>
-        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row">
-          <div className="relative flex-1">
+        <CardContent className="p-4">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Buscar por nome, bairro ou cidade..."
+              placeholder="Buscar por nome, dirigente, bairro ou cidade..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9"
             />
           </div>
-          <Select
-            value={filterTipo}
-            onValueChange={(v) => setFilterTipo(v as TipoUnidade | "todos")}
-          >
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue placeholder="Tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos os tipos</SelectItem>
-              {(Object.keys(TIPOS_UNIDADE) as TipoUnidade[]).map((tipo) => (
-                <SelectItem key={tipo} value={tipo}>
-                  {TIPOS_UNIDADE[tipo]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </CardContent>
       </Card>
 
-      {/* Table */}
+      {/* Content */}
       {loading ? (
         <Card>
           <CardContent className="p-4">
@@ -236,24 +350,18 @@ export default function UnidadesPage() {
             </div>
           </CardContent>
         </Card>
-      ) : filteredUnidades.length === 0 ? (
+      ) : filteredUnidades.length === 0 && unidades.length === 0 ? (
         <Card>
           <CardContent className="p-12">
             <Empty>
               <EmptyMedia variant="icon">
                 <Building2 className="h-10 w-10" />
               </EmptyMedia>
-              <EmptyTitle>
-                {unidades.length === 0
-                  ? "Nenhuma unidade cadastrada"
-                  : "Nenhuma unidade encontrada"}
-              </EmptyTitle>
+              <EmptyTitle>Nenhuma unidade cadastrada</EmptyTitle>
               <EmptyDescription>
-                {unidades.length === 0
-                  ? "Comece cadastrando a primeira unidade (sede)."
-                  : "Tente ajustar os filtros de busca."}
+                Comece cadastrando a primeira unidade (sede).
               </EmptyDescription>
-              {unidades.length === 0 && canManageUnidades && (
+              {canManageUnidades && (
                 <Button asChild className="mt-4">
                   <Link href="/unidades/nova">
                     <Plus className="mr-2 h-4 w-4" />
@@ -265,95 +373,31 @@ export default function UnidadesPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead className="hidden md:table-cell">Hierarquia</TableHead>
-                  <TableHead className="hidden sm:table-cell">Local</TableHead>
-                  <TableHead className="w-12"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUnidades.map((unidade) => (
-                  <TableRow key={unidade.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div 
-                          className="flex h-10 w-10 items-center justify-center rounded-lg text-white"
-                          style={{ backgroundColor: CORES_TIPO_UNIDADE[unidade.tipo] }}
-                        >
-                          <Building2 className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <div className="font-medium">{unidade.nome}</div>
-                          {unidade.dirigente && (
-                            <div className="text-xs text-muted-foreground">
-                              {unidade.dirigente}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        style={{
-                          backgroundColor: CORES_TIPO_UNIDADE[unidade.tipo],
-                          color: "white",
-                        }}
-                      >
-                        {TIPOS_UNIDADE[unidade.tipo]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {unidade.unidadePaiId ? (
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          {getHierarquia(unidade)}
-                          <ChevronRight className="h-3 w-3" />
-                          <span className="font-medium text-foreground">{unidade.nome}</span>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      {unidade.endereco?.cidade ? (
-                        <div className="flex items-center gap-1 text-sm">
-                          <MapPin className="h-3 w-3 text-muted-foreground" />
-                          {unidade.endereco.cidade}
-                          {unidade.endereco.bairro && ` - ${unidade.endereco.bairro}`}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" asChild>
-                          <Link href={`/unidades/${unidade.id}`}>
-                            <Eye className="h-4 w-4" />
-                            <span className="sr-only">Ver detalhes</span>
-                          </Link>
-                        </Button>
-                        {canManageUnidades && (
-                          <Button variant="ghost" size="icon" asChild>
-                            <Link href={`/unidades/${unidade.id}/editar`}>
-                              <Edit className="h-4 w-4" />
-                              <span className="sr-only">Editar</span>
-                            </Link>
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
+        <div className="space-y-8">
+          {/* Sedes */}
+          {renderUnidadeSection(
+            "sede", 
+            sedes, 
+            "Sedes", 
+            "Igreja sede - ponto central da estrutura"
+          )}
+
+          {/* Congregações */}
+          {renderUnidadeSection(
+            "congregacao", 
+            congregacoes, 
+            "Congregações", 
+            "Congregações vinculadas às sedes"
+          )}
+
+          {/* Subcongregações */}
+          {renderUnidadeSection(
+            "subcongregacao", 
+            subcongregacoes, 
+            "Subcongregações", 
+            "Subcongregações vinculadas às congregações"
+          )}
+        </div>
       )}
     </div>
   );
