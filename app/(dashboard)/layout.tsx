@@ -6,6 +6,7 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { Header } from "@/components/dashboard/header";
 import { useAuth } from "@/contexts/auth-context";
+import { UnidadeSelecionadaProvider } from "@/contexts/unidade-selecionada-context";
 import { Spinner } from "@/components/ui/spinner";
 import { SetupRequired } from "@/components/setup-required";
 
@@ -73,12 +74,14 @@ export default function DashboardLayout({
   }
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <Header />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-4 md:p-6">{children}</main>
-      </SidebarInset>
-    </SidebarProvider>
+    <UnidadeSelecionadaProvider>
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>
+          <Header />
+          <main className="flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-4 md:p-6">{children}</main>
+        </SidebarInset>
+      </SidebarProvider>
+    </UnidadeSelecionadaProvider>
   );
 }
