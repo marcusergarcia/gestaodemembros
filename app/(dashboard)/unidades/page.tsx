@@ -205,25 +205,15 @@ export default function UnidadesPage() {
     descricao: string
   ) => (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div 
-            className="h-4 w-4 rounded-full" 
-            style={{ backgroundColor: CORES_TIPO_UNIDADE[tipo] }}
-          />
-          <div>
-            <h2 className="text-lg font-semibold">{titulo}</h2>
-            <p className="text-sm text-muted-foreground">{descricao}</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <div 
+          className="h-4 w-4 rounded-full" 
+          style={{ backgroundColor: CORES_TIPO_UNIDADE[tipo] }}
+        />
+        <div>
+          <h2 className="text-lg font-semibold">{titulo}</h2>
+          <p className="text-sm text-muted-foreground">{descricao}</p>
         </div>
-        {canManageUnidades && (
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/unidades/nova?tipo=${tipo}`}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nova {TIPOS_UNIDADE[tipo]}
-            </Link>
-          </Button>
-        )}
       </div>
 
       {unidadesLista.length === 0 ? (

@@ -85,14 +85,14 @@ const menuItems = [
 
 const adminItems = [
   {
+    title: "Gerenciar Igrejas",
+    href: "/igreja",
+    icon: Church,
+  },
+  {
     title: "Unidades",
     href: "/unidades",
     icon: Building2,
-  },
-  {
-    title: "Igreja",
-    href: "/igreja",
-    icon: Church,
   },
   {
     title: "Usuários",
@@ -106,21 +106,13 @@ const adminItems = [
   },
 ];
 
-// Itens exclusivos para usuários com acesso full (gerenciamento de múltiplas igrejas)
-const fullAccessItems = [
-  {
-    title: "Gerenciar Igrejas",
-    href: "/igrejas",
-    icon: Church,
-  },
-];
+
 
 export function AppSidebar() {
   const pathname = usePathname();
   const { usuario, signOut } = useAuth();
 
   const isAdmin = usuario?.nivelAcesso === "admin" || usuario?.nivelAcesso === "full";
-  const isFull = usuario?.nivelAcesso === "full";
 
   return (
     <Sidebar>
@@ -190,29 +182,7 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
 
-        {isFull && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Sistema</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {fullAccessItems.map((item) => (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={pathname.startsWith(item.href)}
-                      tooltip={item.title}
-                    >
-                      <Link href={item.href}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+        
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-4">
